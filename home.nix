@@ -129,6 +129,12 @@
   # Zsh shell
   programs.zsh = {
     enable = true;
+    enableCompletion = true;
+    autosuggestion = {
+      enable = true;
+      strategy = [ "history" "completion" ];
+    };
+    syntaxHighlighting.enable = true;
 
     initContent =
       let
@@ -218,6 +224,37 @@
 
         # Load API keys from sops-nix secrets
       '' + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
+  };
+
+  # Starship prompt
+  programs.starship = {
+    enable = true;
+    enableZshIntegration = true;
+    settings = {
+      add_newline = false;
+      format = "$directory$git_branch$git_state$git_status$cmd_duration$line_break$character";
+      directory = {
+        truncation_length = 3;
+        truncate_to_repo = true;
+      };
+      git_branch = {
+        format = "[$branch]($style) ";
+        style = "bold purple";
+      };
+      git_status = {
+        format = "[$all_status$ahead_behind]($style) ";
+        style = "bold red";
+      };
+      character = {
+        success_symbol = "[❯](bold green)";
+        error_symbol = "[❯](bold red)";
+      };
+      cmd_duration = {
+        min_time = 2000;
+        format = "[$duration]($style) ";
+        style = "bold yellow";
+      };
+    };
   };
 
   # Zoxide (smart cd)
