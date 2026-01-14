@@ -126,115 +126,95 @@
     # claude-minimax = "ANTHROPIC_AUTH_TOKEN=\${MINIMAX_API_KEY} ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_MODEL=MiniMax-M2 ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2 API_TIMEOUT_MS=3000000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude";
   };
 
-  # Fish shell
-  programs.fish = {
+  # Zsh shell
+  programs.zsh = {
     enable = true;
 
-    functions = {
-      claude-deepseek = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://api.deepseek.com/anthropic
-          set -lx ANTHROPIC_AUTH_TOKEN $DEEPSEEK_API_KEY
-          set -lx ANTHROPIC_MODEL deepseek-chat
-          set -lx ANTHROPIC_SMALL_FAST_MODEL deepseek-chat
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL deepseek-chat
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL deepseek-reasoner
-          claude
-        '';
-      };
-
-      claude-xai = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://api.x.ai/
-          set -lx ANTHROPIC_AUTH_TOKEN $XAI_API_KEY
-          set -lx ANTHROPIC_MODEL grok-code-fast-1
-          set -lx ANTHROPIC_SMALL_FAST_MODEL grok-code-fast-1
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL grok-code-fast-1
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL grok-4
-          claude
-        '';
-      };
-
-      claude-zai = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://api.z.ai/api/anthropic
-          set -lx ANTHROPIC_AUTH_TOKEN $Z_AI_API_KEY
-          # set -lx ANTHROPIC_MODEL GLM-4.7
-          # set -lx ANTHROPIC_SMALL_FAST_MODEL GLM-4.5-Air
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL GLM-4.7
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL GLM-4.7
-          set -lx ANTHROPIC_DEFAULT_HAIKU_MODEL GLM-4.5-Air
-          claude
-        '';
-      };
-
-      claude-qwen = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy
-          set -lx ANTHROPIC_AUTH_TOKEN $QWEN_API_KEY
-          set -lx ANTHROPIC_MODEL Qwen3-Coder-Plus
-          set -lx ANTHROPIC_SMALL_FAST_MODEL Qwen-Plus
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL Qwen3-Coder-Plus
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL Qwen3-Max
-          claude
-        '';
-      };
-
-      claude-kimi = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://api.moonshot.ai/anthropic
-          set -lx ANTHROPIC_AUTH_TOKEN $MOONSHOT_API_KEY
-          set -lx ANTHROPIC_MODEL kimi-k2-turbo-preview
-          set -lx ANTHROPIC_SMALL_FAST_MODEL kimi-k2-turbo-preview
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL kimi-k2-turbo-preview
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL kimi-k2-turbo-preview
-          claude
-        '';
-      };
-
-      claude-router = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL http://127.0.0.1:8080
-          claude
-        '';
-      };
-
-      claude-minimax = {
-        body = ''
-          set -lx ANTHROPIC_BASE_URL https://api.minimax.io/anthropic
-          set -lx ANTHROPIC_AUTH_TOKEN $MINIMAX_API_KEY
-          set -lx ANTHROPIC_MODEL MiniMax-M2
-          set -lx ANTHROPIC_SMALL_FAST_MODEL MiniMax-M2
-          set -lx ANTHROPIC_DEFAULT_SONNET_MODEL MiniMax-M2
-          set -lx ANTHROPIC_DEFAULT_OPUS_MODEL MiniMax-M2
-          set -lx ANTHROPIC_DEFAULT_HAIKU_MODEL MiniMax-M2
-          set -lx API_TIMEOUT_MS 3000000
-          set -lx CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1
-          claude
-        '';
-      };
-    };
-
-    interactiveShellInit =
+    initContent =
       let
         loadSecret = name: ''
-          if test -f "${config.sops.secrets.${name}.path}"
-            set -gx ${name} (cat "${config.sops.secrets.${name}.path}")
-          end
+          if [[ -f "${config.sops.secrets.${name}.path}" ]]; then
+            export ${name}="$(cat "${config.sops.secrets.${name}.path}")"
+          fi
         '';
       in
       ''
-        # Disable greeting
-        set -g fish_greeting
-
         # Initialize mise
-        ~/.local/bin/mise activate fish | source
+        eval "$($HOME/.local/bin/mise activate zsh)"
 
         # Initialize try.rb for project shortcuts
-        eval (~/.local/try.rb init ~/Projects/tries | string collect)
+        eval "$($HOME/.local/try.rb init $HOME/Projects/tries)"
 
         # Initialize jjt for jujutsu workspaces
-        eval (~/.local/bin/jjt init ~/src/workspaces | string collect)
+        eval "$($HOME/.local/bin/jjt init $HOME/src/workspaces)"
+
+        # Claude with alternative model providers
+        claude-deepseek() {
+          ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
+          ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
+          ANTHROPIC_MODEL=deepseek-chat \
+          ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner \
+          claude
+        }
+
+        claude-xai() {
+          ANTHROPIC_BASE_URL=https://api.x.ai/ \
+          ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
+          ANTHROPIC_MODEL=grok-code-fast-1 \
+          ANTHROPIC_SMALL_FAST_MODEL=grok-code-fast-1 \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=grok-code-fast-1 \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=grok-4 \
+          claude
+        }
+
+        claude-zai() {
+          ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
+          ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-4.7 \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL=GLM-4.5-Air \
+          claude
+        }
+
+        claude-qwen() {
+          ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
+          ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
+          ANTHROPIC_MODEL=Qwen3-Coder-Plus \
+          ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max \
+          claude
+        }
+
+        claude-kimi() {
+          ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic \
+          ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY \
+          ANTHROPIC_MODEL=kimi-k2-turbo-preview \
+          ANTHROPIC_SMALL_FAST_MODEL=kimi-k2-turbo-preview \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2-turbo-preview \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-k2-turbo-preview \
+          claude
+        }
+
+        claude-router() {
+          ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
+          claude
+        }
+
+        claude-minimax() {
+          ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
+          ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
+          ANTHROPIC_MODEL=MiniMax-M2 \
+          ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2 \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2 \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2 \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2 \
+          API_TIMEOUT_MS=3000000 \
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+          claude
+        }
 
         # Load API keys from sops-nix secrets
       '' + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
@@ -243,7 +223,7 @@
   # Zoxide (smart cd)
   programs.zoxide = {
     enable = true;
-    enableFishIntegration = true;
+    enableZshIntegration = true;
   };
 
   # FZF (fuzzy finder)
@@ -265,7 +245,7 @@
         extraConfig = "set -g @tmux-gruvbox 'dark'";
       }
     ];
-    shell = "${pkgs.fish}/bin/fish";
+    shell = "${pkgs.zsh}/bin/zsh";
     extraConfig = builtins.readFile ./dotfiles/.tmux.conf;
   };
 
@@ -278,7 +258,7 @@
   # SSH agent (auto-start via launchd on macOS)
   services.ssh-agent = {
     enable = true;
-    enableFishIntegration = true;
+    enableZshIntegration = true;
   };
 
   # sops-nix secrets configuration (using age - recommended for macOS)
