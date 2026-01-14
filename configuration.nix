@@ -12,14 +12,15 @@
   # Enable Touch ID for sudo
   security.pam.services.sudo_local.touchIdAuth = true;
 
-  # Fish shell (adds to /etc/shells)
-  programs.fish.enable = true;
-  environment.shells = [ pkgs.fish ];
+  # Zsh shell (adds to /etc/shells)
+  programs.zsh.enable = true;
+  environment.shells = [ pkgs.zsh ];
 
   # User configuration
   users.users.${username} = {
     name = username;
     home = "/Users/${username}";
+    shell = pkgs.zsh;
   };
 
   # Homebrew (managed by nix-darwin)
@@ -42,7 +43,7 @@
       "supabase"
     ];
     casks = [
-      "ghostty"
+      "ghostty@tip"
       "claude-code"
       "docker-desktop"
     ];
