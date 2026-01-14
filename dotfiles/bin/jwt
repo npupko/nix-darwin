@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Create jj workspace with local (gitignored) files and devenv support
+# Usage: jwt <path> [revision]
+
+dest="${1:-}"
+revision="${2:-}"
+
+if [[ -z "$dest" ]]; then
+  echo "Usage: jwt <path> [revision]"
+  echo ""
+  echo "Creates a jj workspace with local (gitignored) files copied over."
+  echo ""
+  echo "Examples:"
+  echo "  jwt ../project-feature                # New workspace from current parents"
+  echo "  jwt ../project-bugfix main            # Workspace from 'main' bookmark"
+  echo "  jwt ../project-review abc123          # Workspace from specific revision"
+  exit 1
+fi
+
+repo_root="$(jj workspace root)"
+cd "$repo_root"
+
+echo "Creating workspace at $dest..."
+
+if [[ -n "$revision" ]]; then
+  jj workspace add "$dest" -r "$revision"
+else
+  jj workspace add "$dest"
+fi
+
+echo "Copying local files..."
+
+# Whitelist of files to copy (explicit, not rsync)
+COPY_FILES=(
+  "CLAUDE.local.md"
+  "settings.local.json"
+  ".envrc"
+  "devenv.local.nix"
+)
+
+# Glob patterns
+COPY_GLOBS=(
+  ".env"
+  ".env.*"
+  ".snapshot-*.json"
+)
+
+# Copy exact files using /bin/cp for macOS COW support
+for file in "${COPY_FILES[@]}"; do
+  [[ -f "$file" ]] && /bin/cp -Rc "$file" "$dest/" || true
+done
+
+# Copy glob patterns
+for glob in "${COPY_GLOBS[@]}"; do
+  for file in $glob; do
+    [[ -f "$file" ]] && /bin/cp -Rc "$file" "$dest/" || true
+  done
+done
+
+echo "Enabling direnv..."
+(cd "$dest" && direnv allow)
+
+echo ""
+echo "✓ Workspace ready at $dest"

@@ -1,0 +1,41 @@
+"$schema" = "https://jj-vcs.github.io/jj/latest/config-schema.json"
+[ui]
+paginate = "never"
+default-command = ["log", "--reversed"]
+log-word-wrap = true
+graph.style = "curved"
+conflict-marker-style = "git"
+# pager = "delta"
+
+# [ui.diff]
+# tool = ["delta", "$left", "$right", "--file-transformation", "s|.*/jj-diff-[^/]*/[^/]*/||"]
+
+[user]
+name = "Nick Pupko"
+email = "work.pupko@gmail.com"
+
+# [[--scope]]
+# --when.repositories = ["/Users/random/Projects/Yipit/spendhound/backend"]
+# [--scope.user]
+# email = "npupko@datarockets.com"
+
+[signing]
+behavior = "drop"
+backend = "gpg"
+# key = "~/.ssh/id_ed25519.pub"
+key = "C48D99D3C7B7F4D9D8A77C940B0094EAECE32E12"
+
+[template-aliases]
+# Full timestamp in ISO 8601 format
+# 'format_timestamp(timestamp)' = 'timestamp'
+# Relative timestamp rendered as "x days/hours/seconds ago"
+'format_timestamp(timestamp)' = 'timestamp.ago()'
+'format_short_signature(signature)' = 'signature.name()'
+# 'format_short_signature(signature)' = 'signature.email().local()'
+
+[aliases]
+wtf = ["file", "annotate"]
+bump = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]
+
+# [merge-tools.delta]
+# diff-expected-exit-codes = [0, 1]

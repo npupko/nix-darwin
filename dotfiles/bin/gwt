@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Create git worktree with local (gitignored) files and devenv support
+# Usage: gwt <path> [branch]
+
+dest="${1:-}"
+branch="${2:-}"
+
+if [[ -z "$dest" ]]; then
+  echo "Usage: gwt <path> [branch]"
+  echo ""
+  echo "Creates a git worktree with local (gitignored) files copied over."
+  echo ""
+  echo "Examples:"
+  echo "  gwt ../project-feature feature-branch   # New branch"
+  echo "  gwt ../project-bugfix main              # Existing branch"
+  exit 1
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "Creating worktree at $dest..."
+
+if [[ -n "$branch" ]]; then
+  if git show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
+    git worktree add "$dest" "$branch"
+  else
+    git worktree add "$dest" -b "$branch"
+  fi
+else
+  git worktree add "$dest"
+fi
+
+echo "Copying local files..."
+
+# Whitelist of files to copy (explicit, not rsync)
+COPY_FILES=(
+  "CLAUDE.local.md"
+  "settings.local.json"
+  ".envrc"
+  "devenv.local.nix"
+)
+
+# Glob patterns
+COPY_GLOBS=(
+  ".env"
+  ".env.*"
+  ".snapshot-*.json"
+)
+
+# Copy exact files using /bin/cp for macOS COW support
+for file in "${COPY_FILES[@]}"; do
+  [[ -f "$file" ]] && /bin/cp -Rc "$file" "$dest/" || true
+done
+
+# Copy glob patterns
+for glob in "${COPY_GLOBS[@]}"; do
+  for file in $glob; do
+    [[ -f "$file" ]] && /bin/cp -Rc "$file" "$dest/" || true
+  done
+done
+
+echo "Enabling direnv..."
+(cd "$dest" && direnv allow)
+
+echo ""
+echo "✓ Worktree ready at $dest"

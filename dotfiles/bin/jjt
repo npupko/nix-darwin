@@ -1,0 +1,1146 @@
+#!/usr/bin/env ruby
+
+require 'io/console'
+require 'time'
+require 'fileutils'
+
+# Lightweight token-based printer for all UI output with double buffering
+module UI
+  TOKEN_MAP = {
+    # Text formatting
+    '{b}' => "\e[1;33m",           # Bold + Yellow (highlighted text, fuzzy match chars)
+    '{/b}' => "\e[22m\e[39m",      # Reset bold + foreground
+    '{dim}' => "\e[90m",           # Gray (bright black) - secondary/de-emphasized text
+    '{text}' => "\e[0m\e[39m",     # Full reset - normal text
+    '{reset}' => "\e[0m\e[39m\e[49m",  # Complete reset of all formatting
+    '{/fg}' => "\e[39m",           # Reset foreground color only
+    # Headings
+    '{h1}' => "\e[1;38;5;208m",    # Bold + Orange (primary headings)
+    '{h2}' => "\e[1;34m",          # Bold + Blue (secondary headings)
+    # Selection
+    '{section}' => "\e[1m",        # Bold - start of selected/highlighted section
+    '{/section}' => "\e[0m",       # Full reset - end of selected section
+    # Strikethrough (for deleted items)
+    '{strike}' => "\e[48;5;52m",   # Dark red background
+    '{/strike}' => "\e[49m",       # Reset background
+    # Screen control
+    '{clear_screen}' => "\e[2J", '{clear_line}' => "\e[2K", '{home}' => "\e[H", '{clear_below}' => "\e[0J",
+    '{hide_cursor}' => "\e[?25l", '{show_cursor}' => "\e[?25h",
+    # Input cursor
+    '{cursor}' => "\e[7m \e[27m",  # Reverse video space as cursor block
+  }.freeze
+
+  @@buffer = []
+  @@last_buffer = []
+  @@current_line = ""
+
+  @@height = nil
+  @@width = nil
+  @@expand_tokens = true
+  @@force_colors = false
+
+  def self.print(text, io: STDERR)
+    return if text.nil?
+    @@current_line += text
+  end
+
+  def self.puts(text = "", io: STDERR)
+    @@current_line += text
+    @@buffer << @@current_line
+    @@current_line = ""
+  end
+
+  def self.flush(io: STDERR)
+    unless @@current_line.empty?
+      @@buffer << @@current_line
+      @@current_line = ""
+    end
+
+    unless io.tty? || @@force_colors
+      plain = @@buffer.join("\n").gsub(/\{.*?\}/, '')
+      io.print(plain)
+      io.print("\n") unless plain.end_with?("\n")
+      @@last_buffer = []
+      @@buffer.clear
+      @@current_line = ""
+      io.flush
+      return
+    end
+
+    if io.tty?
+      io.print("\e[H")
+    end
+
+    max_lines = [@@buffer.length, @@last_buffer.length].max
+    reset = TOKEN_MAP['{reset}']
+
+    (0...max_lines).each do |i|
+      current_line = @@buffer[i] || ""
+      last_line = @@last_buffer[i] || ""
+
+      if current_line != last_line || @@force_colors
+        if io.tty?
+          io.print("\e[#{i + 1};1H\e[2K")
+        end
+        if !current_line.empty?
+          processed_line = expand_tokens(current_line)
+          io.print(processed_line)
+          io.print(reset) if @@expand_tokens
+          io.print("\n") if @@force_colors && !io.tty?
+        end
+      end
+    end
+
+    @@last_buffer = @@buffer.dup
+    @@buffer.clear
+    @@current_line = ""
+
+    io.flush
+  end
+
+  def self.cls(io: STDERR)
+    @@current_line = ""
+    @@buffer.clear
+    @@last_buffer.clear
+    io.print("\e[2J\e[H")
+  end
+
+  def self.hide_cursor
+    STDERR.print("\e[?25l")
+  end
+
+  def self.show_cursor
+    STDERR.print("\e[?25h")
+  end
+
+  def self.read_key
+    input = STDIN.getc
+
+    if input == "\e"
+      input << STDIN.read_nonblock(3) rescue ""
+      input << STDIN.read_nonblock(2) rescue ""
+    end
+
+    input
+  end
+
+  def self.height
+    @@height ||= begin
+      env_h = ENV['JJT_HEIGHT'].to_i
+      return env_h if env_h > 0
+      h = `tput lines 2>/dev/null`.strip.to_i
+      h > 0 ? h : 24
+    end
+  end
+
+  def self.width
+    @@width ||= begin
+      env_w = ENV['JJT_WIDTH'].to_i
+      return env_w if env_w > 0
+      w = `tput cols 2>/dev/null`.strip.to_i
+      w > 0 ? w : 80
+    end
+  end
+
+  def self.refresh_size
+    @@height = nil
+    @@width = nil
+  end
+
+  def self.disable_token_expansion
+    @@expand_tokens = false
+  end
+
+  def self.disable_colors
+    @@expand_tokens = false
+  end
+
+  def self.force_colors
+    @@force_colors = true
+  end
+
+  def self.expand_tokens(str)
+    return str unless @@expand_tokens
+    str.gsub(/\{.*?\}/) do |match|
+      TOKEN_MAP.fetch(match) { match }
+    end
+  end
+end
+
+class JjtSelector
+  JJT_PATH = ENV['JJT_PATH'] || File.expand_path("~/src/workspaces")
+
+  # Files to copy (exact names)
+  COPY_FILES = %w[
+    CLAUDE.local.md
+    settings.local.json
+    .envrc
+    devenv.local.nix
+  ].freeze
+
+  # Glob patterns to copy
+  COPY_GLOBS = %w[
+    .env
+    .env.*
+    .snapshot-*.json
+  ].freeze
+
+  def initialize(search_term = "", base_path: JJT_PATH, initial_input: nil, test_render_once: false, test_no_cls: false, test_keys: nil, test_confirm: nil)
+    @search_term = search_term.gsub(/\s+/, '-')
+    @cursor_pos = 0
+    @input_cursor_pos = 0
+    @scroll_offset = 0
+    @input_buffer = initial_input ? initial_input.gsub(/\s+/, '-') : @search_term
+    @input_cursor_pos = @input_buffer.length
+    @selected = nil
+    @all_workspaces = nil
+    @base_path = base_path
+    @delete_status = nil
+    @delete_mode = false
+    @marked_for_deletion = []
+    @test_render_once = test_render_once
+    @test_no_cls = test_no_cls
+    @test_keys = test_keys
+    @test_had_keys = test_keys && !test_keys.empty?
+    @test_confirm = test_confirm
+    @old_winch_handler = nil
+    @needs_redraw = false
+
+    # Get current jj repo root (if in a jj repo)
+    @jj_repo_root = get_jj_repo_root
+    @jj_repo_id = get_jj_repo_id
+
+    FileUtils.mkdir_p(@base_path) unless Dir.exist?(@base_path)
+  end
+
+  def run
+    setup_terminal
+
+    if @test_render_once && (@test_keys.nil? || @test_keys.empty?)
+      workspaces = get_workspaces
+      render(workspaces)
+      return nil
+    end
+
+    if !STDIN.tty? || !STDERR.tty?
+      if @test_keys.nil? || @test_keys.empty?
+        UI.puts "Error: jjt requires an interactive terminal"
+        return nil
+      end
+      main_loop
+    else
+      STDERR.raw do
+        main_loop
+      end
+    end
+  ensure
+    restore_terminal
+  end
+
+  private
+
+  def get_jj_repo_root
+    root = `jj workspace root 2>/dev/null`.strip
+    root.empty? ? nil : root
+  end
+
+  def get_jj_repo_id
+    # Get a unique identifier for the repo (operation ID of root)
+    return nil unless @jj_repo_root
+    id = `jj log -r 'root()' --no-graph -T 'commit_id' 2>/dev/null`.strip
+    id.empty? ? nil : id[0..11]  # Short form
+  end
+
+  def get_main_repo_jj_path
+    # Get the main repo's .jj/repo path, resolving workspace pointers
+    return nil unless @jj_repo_root
+
+    repo_file = File.join(@jj_repo_root, '.jj', 'repo')
+
+    if File.file?(repo_file)
+      # We're in a workspace - read the pointer to main repo
+      File.read(repo_file).strip rescue nil
+    else
+      # We're in the main repo
+      repo_file
+    end
+  end
+
+  def get_main_repo_root
+    # Get the main repo root (not workspace root)
+    jj_path = get_main_repo_jj_path
+    return nil unless jj_path
+    # .jj/repo path -> remove /.jj/repo to get repo root
+    jj_path.sub(%r{/\.jj/repo$}, '')
+  end
+
+  def setup_terminal
+    unless @test_no_cls
+      UI.cls
+      UI.hide_cursor
+    end
+
+    @old_winch_handler = Signal.trap('WINCH') do
+      @needs_redraw = true
+    end
+  end
+
+  def restore_terminal
+    unless @test_no_cls
+      UI.cls
+      UI.show_cursor
+    end
+
+    Signal.trap('WINCH', @old_winch_handler) if @old_winch_handler
+  end
+
+  def load_all_workspaces
+    @all_workspaces ||= begin
+      workspaces = []
+
+      # Get main repo's .jj/repo path for comparison (resolves workspace pointers)
+      main_repo_jj = get_main_repo_jj_path
+      main_repo_root = get_main_repo_root
+
+      # Add main repo if we're in a workspace (so user can navigate back)
+      if main_repo_root && @jj_repo_root != main_repo_root
+        stat = File.stat(main_repo_root) rescue nil
+        if stat
+          workspaces << {
+            name: "🏠 #{File.basename(main_repo_root)}",
+            basename: File.basename(main_repo_root),
+            basename_down: File.basename(main_repo_root).downcase,
+            path: main_repo_root,
+            workspace_name: 'default',
+            is_new: false,
+            is_main: true,
+            ctime: stat.ctime,
+            mtime: stat.mtime
+          }
+        end
+      end
+
+      Dir.foreach(@base_path) do |entry|
+        next if entry.start_with?('.')
+
+        path = File.join(@base_path, entry)
+        next unless File.directory?(path)
+
+        # Skip if this is the current workspace we're in
+        next if File.expand_path(path) == File.expand_path(@jj_repo_root || '')
+
+        # Check if this is a jj workspace by reading .jj/repo
+        repo_file = File.join(path, '.jj', 'repo')
+        next unless File.exist?(repo_file)
+
+        # Read the repo pointer to check if it belongs to current repo
+        workspace_repo = File.read(repo_file).strip rescue nil
+        next unless workspace_repo
+
+        # Only include if it's a workspace for current repo
+        next if main_repo_jj && workspace_repo != main_repo_jj
+
+        # Get workspace name from jj
+        workspace_name = `jj workspace list -R '#{path}' -T 'name' 2>/dev/null`.strip
+        workspace_name = entry if workspace_name.empty?
+
+        stat = File.stat(path)
+
+        workspaces << {
+          name: "📁 #{entry}",
+          basename: entry,
+          basename_down: entry.downcase,
+          path: path,
+          workspace_name: workspace_name,
+          is_new: false,
+          ctime: stat.ctime,
+          mtime: stat.mtime
+        }
+      end
+      workspaces
+    end
+  end
+
+  def get_workspaces
+    load_all_workspaces
+
+    query_down = @input_buffer.downcase
+    query_chars = query_down.chars
+
+    scored_workspaces = @all_workspaces.map do |ws|
+      score = calculate_score(ws, query_down, query_chars, ws[:ctime], ws[:mtime])
+      ws.merge(score: score)
+    end
+
+    if @input_buffer.empty?
+      scored_workspaces.sort_by { |w| -w[:score] }
+    else
+      filtered = scored_workspaces.select { |w| w[:score] > 0 }
+      filtered.sort_by { |w| -w[:score] }
+    end
+  end
+
+  def calculate_score(ws, query_down, query_chars, ctime = nil, mtime = nil)
+    text = ws[:basename]
+    text_lower = ws[:basename_down]
+
+    score = 0.0
+
+    if text.start_with?(/\d\d\d\d\-\d\d\-\d\d\-/)
+      score += 2.0
+    end
+
+    if !query_down.empty?
+      query_len = query_chars.length
+      text_len = text_lower.length
+
+      last_pos = -1
+      query_idx = 0
+
+      i = 0
+      while i < text_len
+        break if query_idx >= query_len
+
+        char = text_lower[i]
+
+        if char == query_chars[query_idx]
+          score += 1.0
+          is_boundary = (i == 0) || (text_lower[i-1].match?(/\W/))
+          score += 1.0 if is_boundary
+
+          if last_pos >= 0
+            gap = i - last_pos - 1
+            score += 2.0 / Math.sqrt(gap + 1)
+          end
+
+          last_pos = i
+          query_idx += 1
+        end
+        i += 1
+      end
+
+      return 0.0 if query_idx < query_len
+
+      score *= (query_len.to_f / (last_pos + 1)) if last_pos >= 0
+      score *= (10.0 / (text.length + 10.0))
+    end
+
+    if mtime
+      hours_since_access = (Time.now - mtime) / 3600.0
+      score += 3.0 / Math.sqrt(hours_since_access + 1)
+    end
+
+    score
+  end
+
+  def main_loop
+    loop do
+      workspaces = get_workspaces
+      show_create_new = !@input_buffer.empty? && @jj_repo_root
+      total_items = workspaces.length + (show_create_new ? 1 : 0)
+
+      @cursor_pos = [[@cursor_pos, 0].max, [total_items - 1, 0].max].min
+
+      render(workspaces)
+
+      key = read_key
+
+      case key
+      when "\r"
+        if @delete_mode && !@marked_for_deletion.empty?
+          confirm_batch_delete(workspaces)
+          break if @selected
+        elsif @cursor_pos < workspaces.length
+          handle_selection(workspaces[@cursor_pos])
+          break if @selected
+        elsif show_create_new
+          handle_create_new
+          break if @selected
+        end
+      when "\e[A", "\x10"
+        @cursor_pos = [@cursor_pos - 1, 0].max
+      when "\e[B", "\x0E"
+        @cursor_pos = [@cursor_pos + 1, total_items - 1].min
+      when "\e[C", "\e[D"
+        # Ignore left/right arrows
+      when "\x7F", "\b"
+        if @input_cursor_pos > 0
+          @input_buffer = @input_buffer[0...(@input_cursor_pos-1)] + @input_buffer[@input_cursor_pos..-1]
+          @input_cursor_pos -= 1
+        end
+        @cursor_pos = 0
+      when "\x01"
+        @input_cursor_pos = 0
+      when "\x05"
+        @input_cursor_pos = @input_buffer.length
+      when "\x02"
+        @input_cursor_pos = [@input_cursor_pos - 1, 0].max
+      when "\x06"
+        @input_cursor_pos = [@input_cursor_pos + 1, @input_buffer.length].min
+      when "\x08"
+        if @input_cursor_pos > 0
+          @input_buffer = @input_buffer[0...(@input_cursor_pos-1)] + @input_buffer[@input_cursor_pos..-1]
+          @input_cursor_pos -= 1
+        end
+        @cursor_pos = 0
+      when "\x0B"
+        @input_buffer = @input_buffer[0...@input_cursor_pos]
+      when "\x17"
+        if @input_cursor_pos > 0
+          pos = @input_cursor_pos - 1
+          while pos >= 0 && @input_buffer[pos] !~ /[a-zA-Z0-9]/
+            pos -= 1
+          end
+          while pos >= 0 && @input_buffer[pos] =~ /[a-zA-Z0-9]/
+            pos -= 1
+          end
+          new_pos = pos + 1
+          @input_buffer = @input_buffer[0...new_pos] + @input_buffer[@input_cursor_pos..-1]
+          @input_cursor_pos = new_pos
+        end
+      when "\x04"
+        if @cursor_pos < workspaces.length
+          path = workspaces[@cursor_pos][:path]
+          if @marked_for_deletion.include?(path)
+            @marked_for_deletion.delete(path)
+          else
+            @marked_for_deletion << path
+            @delete_mode = true
+          end
+          @delete_mode = false if @marked_for_deletion.empty?
+        end
+      when "\x03", "\e"
+        if @delete_mode
+          @marked_for_deletion.clear
+          @delete_mode = false
+        else
+          @selected = nil
+          break
+        end
+      when String
+        if key.length == 1 && key =~ /[a-zA-Z0-9\-\_\. ]/
+          @input_buffer = @input_buffer[0...@input_cursor_pos] + key + @input_buffer[@input_cursor_pos..-1]
+          @input_cursor_pos += 1
+          @cursor_pos = 0
+        end
+      end
+    end
+
+    @selected
+  end
+
+  def read_key
+    if @test_keys && !@test_keys.empty?
+      return @test_keys.shift
+    end
+    return "\e" if @test_had_keys && @test_keys && @test_keys.empty?
+
+    loop do
+      if @needs_redraw
+        @needs_redraw = false
+        UI.refresh_size
+        UI.cls
+        return nil
+      end
+      ready = IO.select([STDIN], nil, nil, 0.1)
+      return UI.read_key if ready
+    end
+  end
+
+  def render(workspaces)
+    term_width = UI.width
+    term_height = UI.height
+
+    separator = "─" * (term_width - 1)
+
+    # Header
+    UI.puts "{h1}🔀 JJ Workspace Selector{reset}"
+    if @jj_repo_root
+      main_repo = get_main_repo_root
+      if main_repo && main_repo != @jj_repo_root
+        # We're in a workspace
+        repo_name = File.basename(main_repo)
+        ws_name = File.basename(@jj_repo_root)
+        UI.puts "{dim}Repository: #{repo_name} (in workspace: #{ws_name}){/fg}"
+      else
+        repo_name = File.basename(@jj_repo_root)
+        UI.puts "{dim}Repository: #{repo_name} (#{@jj_repo_id}){/fg}"
+      end
+    else
+      UI.puts "{dim}⚠️  Not in a jj repository{/fg}"
+    end
+    UI.puts "{dim}#{separator}{/fg}"
+
+    # Search input
+    before_cursor = @input_buffer[0...@input_cursor_pos]
+    char_at_cursor = @input_buffer[@input_cursor_pos] || " "
+    after_cursor = @input_buffer[(@input_cursor_pos + 1)..-1] || ""
+    UI.puts "{dim}Search:{/fg} {b}#{before_cursor}\e[7m#{char_at_cursor}\e[27m#{after_cursor}{/b}"
+    UI.puts "{dim}#{separator}{/fg}"
+
+    max_visible = [term_height - 10, 3].max
+    show_create_new = !@input_buffer.empty? && @jj_repo_root
+    total_items = workspaces.length + (show_create_new ? 1 : 0)
+
+    if @cursor_pos < @scroll_offset
+      @scroll_offset = @cursor_pos
+    elsif @cursor_pos >= @scroll_offset + max_visible
+      @scroll_offset = @cursor_pos - max_visible + 1
+    end
+
+    visible_end = [@scroll_offset + max_visible, total_items].min
+
+    if workspaces.empty? && !show_create_new
+      UI.puts "{dim}No workspaces found for this repository.{/fg}"
+      UI.puts "{dim}Type a name and press Enter to create one.{/fg}"
+    end
+
+    (@scroll_offset...visible_end).each do |idx|
+      if idx == workspaces.length && workspaces.any? && idx >= @scroll_offset
+        UI.puts
+      end
+
+      is_selected = idx == @cursor_pos
+      UI.print(is_selected ? "{b}→ {/b}" : "  ")
+
+      if idx < workspaces.length
+        ws = workspaces[idx]
+        is_marked = @marked_for_deletion.include?(ws[:path])
+        basename = ws[:basename]
+
+        time_text = format_relative_time(ws[:mtime])
+        score_text = sprintf("%.1f", ws[:score])
+        meta_text = "#{time_text}, #{score_text}"
+        meta_width = meta_text.length + 1
+
+        prefix_width = 5
+        meta_start = term_width - meta_width
+        max_name_for_meta = meta_start - prefix_width - 1
+        max_name_width = term_width - prefix_width - 1
+
+        UI.print "{strike}" if is_marked
+        icon = if is_marked
+          "🗑️  "
+        elsif ws[:is_main]
+          "🏠 "
+        else
+          "📁 "
+        end
+        UI.print icon
+        UI.print "{section}" if is_selected
+
+        if basename =~ /^(\d{4}-\d{2}-\d{2})-(.+)$/
+          date_part = $1
+          name_part = $2
+          full_name = "#{date_part}-#{name_part}"
+
+          if full_name.length > max_name_width && max_name_width > 14
+            available_for_name = max_name_width - 11 - 1 - 1
+            name_part = name_part[0, available_for_name] + "…" if name_part.length > available_for_name + 1
+            full_name = "#{date_part}-#{name_part}"
+          end
+
+          UI.print "{dim}#{date_part}{/fg}"
+          separator_matches = !@input_buffer.empty? && @input_buffer.include?('-')
+          UI.print(separator_matches ? "{b}-{/b}" : "{dim}-{/fg}")
+
+          if !@input_buffer.empty?
+            UI.print highlight_matches(name_part, @input_buffer)
+          else
+            UI.print name_part
+          end
+
+          display_text = full_name
+        else
+          name = basename
+          if name.length > max_name_width && max_name_width > 2
+            name = name[0, max_name_width - 1] + "…"
+          end
+
+          if !@input_buffer.empty?
+            UI.print highlight_matches(name, @input_buffer)
+          else
+            UI.print name
+          end
+          display_text = name
+        end
+
+        UI.print "{/section}" if is_selected
+
+        if display_text.length <= max_name_for_meta
+          padding_needed = meta_start - prefix_width - display_text.length
+          UI.print " " * padding_needed
+          UI.print "{dim}#{meta_text}{/fg}"
+        end
+
+        UI.print "{/strike}" if is_marked
+      else
+        UI.print "{section}" if is_selected
+        date_prefix = Time.now.strftime("%Y-%m-%d")
+        display_text = "📂 Create new: #{date_prefix}-#{@input_buffer}"
+        UI.print display_text
+        text_width = display_text.length
+        padding_needed = term_width - 3 - text_width
+        UI.print " " * [padding_needed, 1].max
+      end
+
+      UI.puts
+    end
+
+    if total_items > max_visible
+      UI.puts "{dim}#{separator}{/fg}"
+      UI.puts "{dim}[#{@scroll_offset + 1}-#{visible_end}/#{total_items}]{/fg}"
+    end
+
+    UI.puts "{dim}#{separator}{/fg}"
+
+    if @delete_status
+      UI.puts "{b}#{@delete_status}{/b}"
+      @delete_status = nil
+    elsif @delete_mode
+      count = @marked_for_deletion.length
+      UI.puts "{strike} DELETE MODE {/strike} #{count} marked  |  Ctrl-D: Toggle  Enter: Confirm  Esc: Cancel"
+    else
+      UI.puts "{dim}↑↓: Navigate  Enter: Select  Ctrl-D: Delete  Esc: Cancel{/fg}"
+    end
+
+    UI.flush
+  end
+
+  def format_relative_time(time)
+    return "?" unless time
+
+    seconds = Time.now - time
+    minutes = seconds / 60
+    hours = minutes / 60
+    days = hours / 24
+
+    if seconds < 60
+      "just now"
+    elsif minutes < 60
+      "#{minutes.to_i}m ago"
+    elsif hours < 24
+      "#{hours.to_i}h ago"
+    elsif days < 7
+      "#{days.to_i}d ago"
+    else
+      "#{(days/7).to_i}w ago"
+    end
+  end
+
+  def highlight_matches(text, query)
+    return text if query.empty?
+
+    result = ""
+    text_lower = text.downcase
+    query_lower = query.downcase
+    query_chars = query_lower.chars
+    query_index = 0
+
+    text.chars.each_with_index do |char, i|
+      if query_index < query_chars.length && text_lower[i] == query_chars[query_index]
+        result += "{b}#{char}{/b}"
+        query_index += 1
+      else
+        result += char
+      end
+    end
+
+    result
+  end
+
+  def handle_selection(ws)
+    @selected = { type: :cd, path: ws[:path] }
+  end
+
+  def handle_create_new
+    return unless @jj_repo_root
+
+    # Use main repo root for creating workspaces (even when in a workspace)
+    repo_root = get_main_repo_root || @jj_repo_root
+
+    date_prefix = Time.now.strftime("%Y-%m-%d")
+    final_name = "#{date_prefix}-#{@input_buffer}".gsub(/\s+/, '-')
+    final_name = resolve_unique_name(final_name)
+    full_path = File.join(@base_path, final_name)
+
+    @selected = {
+      type: :workspace_add,
+      path: full_path,
+      repo_root: repo_root,
+      name: final_name
+    }
+  end
+
+  def resolve_unique_name(dir_name)
+    candidate = dir_name
+    i = 2
+    while Dir.exist?(File.join(@base_path, candidate))
+      candidate = "#{dir_name}-#{i}"
+      i += 1
+    end
+    candidate
+  end
+
+  def confirm_batch_delete(workspaces)
+    marked_items = workspaces.select { |w| @marked_for_deletion.include?(w[:path]) }
+    return if marked_items.empty?
+
+    UI.cls
+    UI.puts "{h2}Delete #{marked_items.length} Workspace#{marked_items.length == 1 ? '' : 's'}{reset}"
+    UI.puts
+
+    marked_items.each do |item|
+      UI.puts "  {strike}📁 #{item[:basename]}{/strike}"
+    end
+
+    UI.puts
+    UI.puts "{b}Type {/b}YES{b} to confirm deletion: {/b}"
+    UI.flush
+    STDERR.print("\e[?25h")
+
+    confirmation = ""
+    if @test_keys && !@test_keys.empty?
+      while @test_keys && !@test_keys.empty?
+        ch = @test_keys.shift
+        break if ch == "\r" || ch == "\n"
+        confirmation += ch
+      end
+    elsif @test_confirm || !STDERR.tty?
+      confirmation = (@test_confirm || STDIN.gets)&.chomp.to_s
+    else
+      STDERR.cooked do
+        STDIN.iflush
+        confirmation = gets.chomp
+      end
+    end
+
+    if confirmation == "YES"
+      begin
+        base_real = File.realpath(@base_path)
+        validated = []
+        marked_items.each do |item|
+          target_real = File.realpath(item[:path])
+          unless target_real.start_with?(base_real + "/")
+            raise "Safety check failed: #{target_real} is not inside #{base_real}"
+          end
+          validated << {
+            path: target_real,
+            basename: item[:basename],
+            workspace_name: item[:workspace_name]
+          }
+        end
+
+        @selected = {
+          type: :delete,
+          paths: validated,
+          base_path: base_real,
+          repo_root: get_main_repo_root || @jj_repo_root
+        }
+        names = validated.map { |p| p[:basename] }.join(", ")
+        @delete_status = "Deleted: {strike}#{names}{/strike}"
+        @all_workspaces = nil
+        @marked_for_deletion.clear
+        @delete_mode = false
+      rescue => e
+        @delete_status = "Error: #{e.message}"
+      end
+    else
+      @delete_status = "Delete cancelled"
+      @marked_for_deletion.clear
+      @delete_mode = false
+    end
+
+    STDERR.print("\e[?25l")
+  end
+end
+
+# Main execution
+if __FILE__ == $0
+  VERSION = "1.0.0"
+
+  def print_global_help
+    text = <<~HELP
+      {h1}jjt{reset} v#{VERSION} - jujutsu workspace manager
+
+      To use jjt, add to your shell config:
+
+        {dim}# bash/zsh (~/.bashrc or ~/.zshrc){/fg}
+        {b}eval "$(jjt init ~/src/workspaces)"{/b}
+
+        {dim}# fish (~/.config/fish/config.fish){/fg}
+        {b}eval (jjt init ~/src/workspaces | string collect){/b}
+
+      {h2}Usage:{reset}
+        jjt [query]           Interactive workspace selector
+        jjt init [path]       Output shell function definition
+        jjt --help            Show this help
+
+      {h2}Features:{reset}
+        - Creates jj workspaces with date-prefixed names
+        - Copies local files (CLAUDE.local.md, .env, .envrc, devenv.local.nix, etc.)
+        - Runs direnv allow automatically
+        - Fuzzy search with recency scoring
+
+      {h2}Defaults:{reset}
+        Default path: {dim}~/src/workspaces{/fg}
+        Current: {dim}#{JjtSelector::JJT_PATH}{/fg}
+    HELP
+    out = UI.expand_tokens(text)
+    STDOUT.print(out)
+  end
+
+  if ARGV.delete('--no-expand-tokens')
+    UI.disable_token_expansion
+  end
+
+  if ARGV.delete('--no-colors')
+    UI.disable_colors
+  end
+
+  if ENV['NO_COLOR'] && !ENV['NO_COLOR'].empty?
+    UI.disable_colors
+  end
+
+  if ARGV.include?("--help") || ARGV.include?("-h")
+    print_global_help
+    exit 0
+  end
+
+  if ARGV.include?("--version") || ARGV.include?("-v")
+    puts "jjt #{VERSION}"
+    exit 0
+  end
+
+  def extract_option_with_value!(args, opt_name)
+    i = args.rindex { |a| a == opt_name || a.start_with?("#{opt_name}=") }
+    return nil unless i
+    arg = args.delete_at(i)
+    if arg.include?('=')
+      arg.split('=', 2)[1]
+    else
+      args.delete_at(i)
+    end
+  end
+
+  workspaces_path = extract_option_with_value!(ARGV, '--path') || JjtSelector::JJT_PATH
+  workspaces_path = File.expand_path(workspaces_path)
+
+  and_type = extract_option_with_value!(ARGV, '--and-type')
+  and_exit = !!ARGV.delete('--and-exit')
+  and_keys_raw = extract_option_with_value!(ARGV, '--and-keys')
+  and_confirm = extract_option_with_value!(ARGV, '--and-confirm')
+
+  if and_exit || and_keys_raw
+    UI.force_colors
+  end
+
+  command = ARGV.shift
+
+  def parse_test_keys(spec)
+    return nil unless spec && !spec.empty?
+    use_token_mode = spec.include?(',') || spec.match?(/^[A-Z\-]+$/)
+    if use_token_mode
+      tokens = spec.split(/,\s*/)
+      keys = []
+      tokens.each do |tok|
+        up = tok.upcase
+        case up
+        when 'UP' then keys << "\e[A"
+        when 'DOWN' then keys << "\e[B"
+        when 'ENTER' then keys << "\r"
+        when 'ESC' then keys << "\e"
+        when 'BACKSPACE' then keys << "\x7F"
+        when 'CTRL-D', 'CTRLD' then keys << "\x04"
+        when /^TYPE=(.*)$/
+          $1.each_char { |ch| keys << ch }
+        else
+          keys << tok if tok.length == 1
+        end
+      end
+      keys
+    else
+      keys = []
+      i = 0
+      while i < spec.length
+        if spec[i] == "\e" && i + 2 < spec.length && spec[i + 1] == '['
+          keys << spec[i, 3]
+          i += 3
+        else
+          keys << spec[i]
+          i += 1
+        end
+      end
+      keys
+    end
+  end
+  and_keys = parse_test_keys(and_keys_raw)
+
+  def q(str)
+    "'" + str.gsub("'", %q('"'"')) + "'"
+  end
+
+  def emit_script(cmds)
+    puts "# if you can read this, you didn't launch jjt from an alias. run jjt --help."
+    cmds.each_with_index do |cmd, i|
+      if i == 0
+        print cmd
+      else
+        print "  #{cmd}"
+      end
+      if i < cmds.length - 1
+        puts " && \\"
+      else
+        puts
+      end
+    end
+  end
+
+  def script_cd(path)
+    ["touch #{q(path)}", "cd #{q(path)}"]
+  end
+
+  def script_workspace_add(path, repo_root)
+    # Build commands for workspace creation
+    cmds = []
+    cmds << "echo #{q(UI.expand_tokens("{b}Creating jj workspace...{/b}"))}"
+    cmds << "jj workspace add #{q(path)} -R #{q(repo_root)}"
+
+    # Copy local files using whitelist + cp -Rc (COW on APFS)
+    copy_files = JjtSelector::COPY_FILES
+    copy_globs = JjtSelector::COPY_GLOBS
+
+    copy_files.each do |file|
+      # Use /bin/cp for macOS COW support (-c flag), fallback to regular cp
+      cmds << "test -f #{q(repo_root)}/#{file} && /bin/cp -Rc #{q(repo_root)}/#{file} #{q(path)}/ || true"
+    end
+
+    copy_globs.each do |glob|
+      # Use find for glob patterns, /bin/cp for macOS COW
+      cmds << "find #{q(repo_root)} -maxdepth 1 -name #{q(glob)} -exec /bin/cp -Rc {} #{q(path)}/ \\; 2>/dev/null || true"
+    end
+
+    # Enable direnv (use sh -c for Fish compatibility)
+    cmds << "sh -c 'cd #{q(path)} && direnv allow 2>/dev/null || true'"
+    cmds << "echo #{q(UI.expand_tokens("{b}✓ Workspace ready{/b}"))}"
+
+    cmds + script_cd(path)
+  end
+
+  def script_delete(paths, base_path, repo_root)
+    cmds = ["cd #{q(base_path)}"]
+
+    # Forget each workspace from jj first
+    paths.each do |item|
+      if item[:workspace_name]
+        cmds << "jj workspace forget #{q(item[:workspace_name])} -R #{q(repo_root)} 2>/dev/null || true"
+      end
+    end
+
+    # Then remove directories
+    paths.each do |item|
+      cmds << "test -d #{q(item[:basename])} && rm -rf #{q(item[:basename])}"
+    end
+
+    cmds << "sh -c 'cd #{q(Dir.pwd)} 2>/dev/null || cd \"$HOME\"'"
+    cmds
+  end
+
+  def cmd_init!(args, workspaces_path)
+    script_path = File.expand_path($0)
+
+    if args[0] && args[0].start_with?('/')
+      workspaces_path = File.expand_path(args.shift)
+    end
+
+    path_arg = workspaces_path ? " --path '#{workspaces_path}'" : ""
+    bash_or_zsh_script = <<~SHELL
+      jjt() {
+        local out
+        out=$(/usr/bin/env ruby '#{script_path}' exec#{path_arg} "$@" 2>/dev/tty)
+        if [ $? -eq 0 ]; then
+          eval "$out"
+        else
+          echo "$out"
+        fi
+      }
+    SHELL
+
+    fish_script = <<~SHELL
+      function jjt
+        set -l out (/usr/bin/env ruby '#{script_path}' exec#{path_arg} $argv 2>/dev/tty | string collect)
+        if test $status -eq 0
+          eval $out
+        else
+          echo $out
+        end
+      end
+    SHELL
+
+    puts fish? ? fish_script : bash_or_zsh_script
+    exit 0
+  end
+
+  def cmd_cd!(args, workspaces_path, and_type, and_exit, and_keys, and_confirm)
+    search_term = args.join(' ')
+
+    selector = JjtSelector.new(
+      search_term,
+      base_path: workspaces_path,
+      initial_input: and_type,
+      test_render_once: and_exit,
+      test_no_cls: (and_exit || (and_keys && !and_keys.empty?)),
+      test_keys: and_keys,
+      test_confirm: and_confirm
+    )
+    result = selector.run
+    return nil unless result
+
+    case result[:type]
+    when :delete
+      script_delete(result[:paths], result[:base_path], result[:repo_root])
+    when :workspace_add
+      script_workspace_add(result[:path], result[:repo_root])
+    else
+      script_cd(result[:path])
+    end
+  end
+
+  def fish?
+    ENV['SHELL']&.include?('fish')
+  end
+
+  case command
+  when nil
+    # No arguments - show interactive selector (same as `jjt exec`)
+    script = cmd_cd!([], workspaces_path, and_type, and_exit, and_keys, and_confirm)
+    if script
+      emit_script(script)
+      exit 0
+    else
+      puts "Cancelled."
+      exit 1
+    end
+  when 'init'
+    cmd_init!(ARGV, workspaces_path)
+    exit 0
+  when 'exec'
+    script = cmd_cd!(ARGV, workspaces_path, and_type, and_exit, and_keys, and_confirm)
+    if script
+      emit_script(script)
+      exit 0
+    else
+      puts "Cancelled."
+      exit 1
+    end
+  else
+    script = cmd_cd!(ARGV.unshift(command), workspaces_path, and_type, and_exit, and_keys, and_confirm)
+    if script
+      emit_script(script)
+      exit 0
+    else
+      puts "Cancelled."
+      exit 1
+    end
+  end
+end

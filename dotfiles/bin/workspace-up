@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Traefik multi-workspace launcher for class8-eld-api
+# Can be called from any workspace directory
+
+PROJECT_DIR="${1:-$(pwd)}"
+cd "$PROJECT_DIR"
+
+DIR_NAME="$(basename "$PROJECT_DIR")"
+
+# Derive workspace name from directory (for Traefik routing)
+# NOTE: Don't change COMPOSE_PROJECT_NAME - it would break volume mounting
+if [[ "$DIR_NAME" == "class8-eld-api" ]]; then
+  WORKSPACE_NAME="main"
+else
+  WORKSPACE_NAME="${DIR_NAME#class8-eld-api-}"
+fi
+
+export WORKSPACE_NAME
+
+echo "Starting workspace: $WORKSPACE_NAME"
+echo "  Frontend: http://${WORKSPACE_NAME}.localhost"
+echo "  API:      http://api.${WORKSPACE_NAME}.localhost"
+
+# Ensure traefik-proxy network exists
+docker network inspect traefik-proxy &>/dev/null || docker network create traefik-proxy
+
+# Ensure Traefik is running
+if ! docker ps --format '{{.Names}}' | grep -q '^traefik$'; then
+  echo "Starting Traefik..."
+  docker compose -f ~/.config/traefik/compose.yml up -d
+fi
+
+# Create/update cda/.env.local with correct API URL
+cat > cda/.env.local << EOF
+# Auto-generated for Traefik mode
+VITE_API_URL=http://api.${WORKSPACE_NAME}.localhost
+EOF
+
+# Start workspace services (uses default project name from directory)
+docker compose -f compose.yml -f compose.traefik.yml up -d
+
+echo "Done! Workspace $WORKSPACE_NAME is running."
+echo "  Dashboard: http://localhost:8080"

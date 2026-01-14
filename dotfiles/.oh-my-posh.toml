@@ -1,0 +1,54 @@
+console_title_template = '{{if .Root}}(Admin){{end}} {{.PWD}}'
+version = 3
+
+[transient_prompt]
+  template = '❯ '
+  foreground = '#B48EAD'
+  foreground_templates = ['{{ if gt .Code 0 }}#BF616A{{ end }}']
+
+[[blocks]]
+  type = 'prompt'
+  alignment = 'left'
+
+  [[blocks.segments]]
+    template = '{{ .UserName }} '
+    foreground = '#BF616A'
+    type = 'session'
+    style = 'plain'
+
+  [[blocks.segments]]
+    template = '{{ .Path }} '
+    foreground = '#81A1C1'
+    type = 'path'
+    style = 'plain'
+
+    [blocks.segments.properties]
+      style = 'full'
+
+[[blocks]]
+  type = 'prompt'
+  alignment = 'left'
+
+  [[blocks.segments]]
+    template = ' {{ .FormattedMs }} '
+    foreground = '#A3BE8C'
+    type = 'executiontime'
+    style = 'plain'
+
+    [blocks.segments.properties]
+      style = 'austin'
+
+[[blocks]]
+  type = 'prompt'
+  alignment = 'left'
+  newline = true
+
+  [[blocks.segments]]
+    template = '❯ '
+    foreground = '#B48EAD'
+    type = 'status'
+    style = 'plain'
+    foreground_templates = ['{{ if gt .Code 0 }}#BF616A{{ end }}']
+
+    [blocks.segments.properties]
+      always_enabled = true

@@ -1,0 +1,8 @@
+keys:
+  - &user age1a0e0x0wszsajfmrg42ulwj9922jv2z3dnqezswv8jjujuk5fquhq3r2a0l
+
+creation_rules:
+  - path_regex: secrets\.yaml$
+    key_groups:
+      - age:
+          - *user

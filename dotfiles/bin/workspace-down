@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Traefik multi-workspace stopper for class8-eld-api
+
+PROJECT_DIR="${1:-$(pwd)}"
+cd "$PROJECT_DIR"
+
+DIR_NAME="$(basename "$PROJECT_DIR")"
+
+if [[ "$DIR_NAME" == "class8-eld-api" ]]; then
+  WORKSPACE_NAME="main"
+else
+  WORKSPACE_NAME="${DIR_NAME#class8-eld-api-}"
+fi
+
+export WORKSPACE_NAME
+
+echo "Stopping workspace: $WORKSPACE_NAME"
+docker compose -f compose.yml -f compose.traefik.yml down
