@@ -19,11 +19,8 @@
   # Packages (review and uncomment as needed)
   home.packages = with pkgs; [
     # Core Dev Tools
-    nodejs_24
-    rustup
     bun
     uv
-    volta
 
     # Editors
     helix
@@ -92,7 +89,6 @@
 
   # PATH additions
   home.sessionPath = [
-    "/Users/${username}/.volta/bin"
     "/Users/${username}/.local/bin"
     "/Users/${username}/.claude/local"
     "/Users/${username}/.bun/bin"
@@ -106,7 +102,8 @@
     be = "bundle exec";
     k = "kubectl";
     zj = "zellij";
-    dp = "v /etc/nix-darwin/home.nix";
+    dh = "v /etc/nix-darwin/home.nix";
+    dp = "v /etc/nix-darwin/configuration.nix";
     de = "v /etc/nix-darwin";
     dr = "sudo darwin-rebuild switch";
     du = "nix flake update --flake /etc/nix-darwin/";
@@ -145,6 +142,11 @@
         '';
       in
       ''
+        # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
+        # TRAPINT() {
+        #   return $(( 128 + $1 ))
+        # }
+
         # Initialize mise
         eval "$($HOME/.local/bin/mise activate zsh)"
 
