@@ -300,6 +300,26 @@
     enableZshIntegration = true;
   };
 
+  # SSH client configuration
+  programs.ssh = {
+    enable = true;
+    enableDefaultConfig = false;
+    matchBlocks = {
+      "*" = {
+        extraOptions = {
+          AddKeysToAgent = "yes";
+          UseKeychain = "yes";
+        };
+      };
+      "bitbucket-fleetrover" = {
+        hostname = "bitbucket.org";
+        user = "git";
+        identityFile = "~/.ssh/id_ed25519_fleetrover";
+        identitiesOnly = true;
+      };
+    };
+  };
+
   # sops-nix secrets configuration (using age - recommended for macOS)
   sops = {
     defaultSopsFile = ./secrets.yaml;
