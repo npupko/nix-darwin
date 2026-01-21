@@ -123,6 +123,18 @@
     # claude-minimax = "ANTHROPIC_AUTH_TOKEN=\${MINIMAX_API_KEY} ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_MODEL=MiniMax-M2 ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2 API_TIMEOUT_MS=3000000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude";
   };
 
+  programs.mise = {
+    enable = true;
+    enableZshIntegration = true;
+    globalConfig = {
+      tools = {
+        node = "latest";
+        "npm:typescript" = "latest";
+        "npm:typescript-language-server" = "latest";
+      };
+    };
+  };
+
   # Zsh shell
   programs.zsh = {
     enable = true;
@@ -146,9 +158,6 @@
         # TRAPINT() {
         #   return $(( 128 + $1 ))
         # }
-
-        # Initialize mise
-        eval "$($HOME/.local/bin/mise activate zsh)"
 
         # Initialize try.rb for project shortcuts
         eval "$($HOME/.local/try.rb init $HOME/Projects/tries)"

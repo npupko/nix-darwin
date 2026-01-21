@@ -48,7 +48,7 @@
             nix.enable = false;
 
             # Custom Determinate Nix settings written to /etc/nix/nix.custom.conf
-            determinate-nix.customSettings = {
+            determinateNix.customSettings = {
               # Enables parallel evaluation (set to 1 to disable)
               # eval-cores = 0;
               extra-experimental-features = [
