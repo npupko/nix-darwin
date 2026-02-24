@@ -41,10 +41,23 @@
       "transmission"
       "libyaml"
       "supabase"
+      "zrok"
+      "ollama"
+      "glow"
+      "PeonPing/tap/peon-ping"
+      "terminal-notifier"
+
+      # For QMK
+      "clang-format"
+      "dos2unix"
+      "git"
+      "hidapi"
+      "libusb"
+      "make"
+      "zstd"
     ];
     casks = [
       "ghostty@tip"
-      "claude-code"
       "docker-desktop"
     ];
   };

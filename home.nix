@@ -1,10 +1,10 @@
 {
-  config,
-  pkgs,
-  lib,
-  inputs,
-  username,
-  ...
+config,
+pkgs,
+lib,
+inputs,
+username,
+...
 }:
 {
   imports = [ inputs.sops-nix.homeManagerModules.sops ];
@@ -47,6 +47,7 @@
 
     # Shell & Terminal
     zellij
+    ugrep
 
     # AI Tools
     # aichat
@@ -105,13 +106,14 @@
     dh = "v /etc/nix-darwin/home.nix";
     dp = "v /etc/nix-darwin/configuration.nix";
     de = "v /etc/nix-darwin";
-    dr = "sudo darwin-rebuild switch";
-    du = "nix flake update --flake /etc/nix-darwin/";
+    dr = "ulimit -n 10240 && sudo darwin-rebuild switch";
+    du = "ulimit -n 10240 && nix flake update --flake /etc/nix-darwin/";
     dcd = "cd /etc/nix-darwin/";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
     cm = "claude-monitor --timezone Europe/Minsk --plan max5";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
+    grep = "ug";
 
     # Claude with alternative model providers
     # claude-deepseek = "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=\${DEEPSEEK_API_KEY} ANTHROPIC_MODEL=deepseek-chat ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner claude";
@@ -127,8 +129,14 @@
     enable = true;
     enableZshIntegration = true;
     globalConfig = {
+      settings = {
+        npm = {
+          package_manager = "bun";
+        };
+      };
       tools = {
         node = "latest";
+        bun = "latest";
         "npm:typescript" = "latest";
         "npm:typescript-language-server" = "latest";
       };
@@ -153,7 +161,7 @@
           fi
         '';
       in
-      ''
+        ''
         # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
         # TRAPINT() {
         #   return $(( 128 + $1 ))
@@ -234,7 +242,7 @@
         }
 
         # Load API keys from sops-nix secrets
-      '' + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
+        '' + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
   };
 
   # Starship prompt
@@ -318,6 +326,7 @@
         extraOptions = {
           AddKeysToAgent = "yes";
           UseKeychain = "yes";
+          SetEnv = "TERM=xterm-256color";
         };
       };
       "bitbucket-fleetrover" = {
@@ -332,6 +341,9 @@
   # sops-nix secrets configuration (using age - recommended for macOS)
   sops = {
     defaultSopsFile = ./secrets.yaml;
+
+    # Fix PATH for launchd agent to find getconf (needed for DARWIN_USER_TEMP_DIR)
+    environment.PATH = lib.mkForce "/usr/bin:/bin:/usr/sbin:/sbin";
 
     # Use dedicated age key file
     age.keyFile = "/Users/${username}/.config/sops/age/keys.txt";
