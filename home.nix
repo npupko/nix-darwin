@@ -127,6 +127,7 @@ username,
 
   programs.mise = {
     enable = true;
+    # package = inputs.mise.packages.${pkgs.system}.default;
     enableZshIntegration = true;
     globalConfig = {
       settings = {
@@ -295,12 +296,12 @@ username,
     focusEvents = true;
     baseIndex = 1;
     terminal = "xterm-ghostty";
-    plugins = with pkgs; [
-      {
-        plugin = tmuxPlugins.gruvbox;
-        extraConfig = "set -g @tmux-gruvbox 'dark'";
-      }
-    ];
+    # plugins = with pkgs; [
+    #   {
+    #     plugin = tmuxPlugins.gruvbox;
+    #     extraConfig = "set -g @tmux-gruvbox 'dark'";
+    #   }
+    # ];
     shell = "${pkgs.zsh}/bin/zsh";
     extraConfig = builtins.readFile ./dotfiles/.tmux.conf;
   };
@@ -334,6 +335,9 @@ username,
         user = "git";
         identityFile = "~/.ssh/id_ed25519_fleetrover";
         identitiesOnly = true;
+        extraOptions = {
+          WarnWeakCrypto = "no";
+        };
       };
     };
   };
@@ -368,6 +372,15 @@ username,
       HF_TOKEN = { };
       MINIMAX_API_KEY = { };
       OPENAI_API_KEY = { };
+      SENTRY_API_KEY = { };
+      BRAVE_API_KEY = { };
+      GEMINI_API_KEY = { };
+      NEW_OPENAI_API_KEY = { };
+      GOOGLE_PLACES_API_KEY = { };
+      REQUESTY_API_KEY = { };
+      REQUESTY_BASE_URL = { };
+      LINEAR_API_KEY = { };
+      ELEVENLABS_API_KEY = { };
     };
   };
 

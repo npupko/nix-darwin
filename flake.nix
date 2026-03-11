@@ -23,6 +23,11 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    mise = {
+      url = "github:jdx/mise";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
