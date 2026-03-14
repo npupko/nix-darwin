@@ -96,6 +96,21 @@
     fira-code
   ];
 
+  # Raise macOS file descriptor limits (default 256 is too low for Nix)
+  launchd.daemons.limit-maxfiles = {
+    serviceConfig = {
+      Label = "limit.maxfiles";
+      ProgramArguments = [
+        "launchctl"
+        "limit"
+        "maxfiles"
+        "65536"
+        "524288"
+      ];
+      RunAtLoad = true;
+    };
+  };
+
   # Homebrew (managed by nix-darwin)
   homebrew = {
     enable = true;
