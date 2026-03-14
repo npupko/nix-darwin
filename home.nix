@@ -50,6 +50,7 @@
     doctl
 
     # Shell & Terminal
+    alacritty
     zellij
     ugrep
 
@@ -692,6 +693,7 @@
   home.file = {
     ".config/jj/config.toml".source = ./dotfiles/jj/config.toml;
     ".config/zellij/config.kdl".source = ./dotfiles/zellij/config.kdl;
+    ".config/alacritty/alacritty.toml".source = ./dotfiles/alacritty/alacritty.toml;
     ".aider.conf.yml".source = ./dotfiles/aider.conf.yml;
     ".local/bin/gwt" = {
       source = ./dotfiles/bin/gwt;
