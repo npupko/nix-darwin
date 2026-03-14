@@ -24,6 +24,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nixpkgs-unstable = {
+      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    };
+
     mise = {
       url = "github:jdx/mise";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -60,8 +64,8 @@
                 "build-time-fetch-tree" # Enables build-time flake inputs
                 "parallel-eval" # Enables parallel evaluation
               ];
-              extra-substituters = https://devenv.cachix.org;
-              extra-trusted-public-keys = devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=;
+              extra-substituters = "https://devenv.cachix.org";
+              extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
               trusted-users = [
                 "root"
                 username
@@ -83,6 +87,10 @@
               backupFileExtension = "backup";
               extraSpecialArgs = {
                 inherit inputs username;
+                pkgs-unstable = import inputs.nixpkgs-unstable {
+                  inherit system;
+                  config.allowUnfree = true;
+                };
               };
               users.${username} = import ./home.nix;
             };

@@ -1,10 +1,22 @@
+# =============================================================================
+# PACKAGE MANAGEMENT STRATEGY
+# =============================================================================
+# Nix (home.packages):  CLI tools, system utilities, fonts, stable software
+# Nix (pkgs-unstable):  Fast-moving tools where nixpkgs-stable is too old
+# Homebrew brews:       macOS-specific, not in nixpkgs, or need latest versions
+# Homebrew casks:       GUI applications
+# Mise:                 Language runtimes + npm/node CLI tools (always latest)
+# Self-managed:         Claude Code (auto-updates via native installer)
+# Manual (1 tool):      serena-agent via uv (not in nixpkgs)
+# =============================================================================
 {
-config,
-pkgs,
-lib,
-inputs,
-username,
-...
+  config,
+  pkgs,
+  pkgs-unstable,
+  lib,
+  inputs,
+  username,
+  ...
 }:
 {
   imports = [ inputs.sops-nix.homeManagerModules.sops ];
@@ -19,12 +31,12 @@ username,
   # Packages (review and uncomment as needed)
   home.packages = with pkgs; [
     # Core Dev Tools
-    bun
     uv
+    eza
 
     # Editors
-    helix
-    neovim
+    pkgs-unstable.helix
+    pkgs-unstable.neovim
     markdown-oxide
 
     # Cloud/Infra
@@ -66,7 +78,6 @@ username,
     coreutils
     automake
     bash
-    cocoapods
     libffi
     postgresql
     pkg-config
@@ -92,8 +103,6 @@ username,
   home.sessionPath = [
     "/Users/${username}/.local/bin"
     "/Users/${username}/.claude/local"
-    "/Users/${username}/.bun/bin"
-    "/Users/${username}/.cargo/bin"
     "/Users/${username}/Projects/npupko/utility/target/release"
   ];
 
@@ -110,10 +119,10 @@ username,
     du = "ulimit -n 10240 && nix flake update --flake /etc/nix-darwin/";
     dcd = "cd /etc/nix-darwin/";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
-    cm = "claude-monitor --timezone Europe/Minsk --plan max5";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
     grep = "ug";
+    cx = "claude --dangerously-skip-permissions";
 
     # Claude with alternative model providers
     # claude-deepseek = "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=\${DEEPSEEK_API_KEY} ANTHROPIC_MODEL=deepseek-chat ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner claude";
@@ -140,6 +149,18 @@ username,
         bun = "latest";
         "npm:typescript" = "latest";
         "npm:typescript-language-server" = "latest";
+
+        # AI CLI tools
+        "npm:@google/gemini-cli" = "latest";
+        "npm:@openai/codex" = "latest";
+        "npm:@sourcegraph/amp" = "latest";
+        "npm:@qwen-code/qwen-code" = "latest";
+        "npm:opencode-ai" = "latest";
+        "npm:@musistudio/claude-code-router" = "latest";
+
+        # Dev tools
+        "npm:vercel" = "latest";
+        "npm:eas-cli" = "latest";
       };
     };
   };
@@ -150,7 +171,10 @@ username,
     enableCompletion = true;
     autosuggestion = {
       enable = true;
-      strategy = [ "history" "completion" ];
+      strategy = [
+        "history"
+        "completion"
+      ];
     };
     syntaxHighlighting.enable = true;
 
@@ -162,7 +186,7 @@ username,
           fi
         '';
       in
-        ''
+      ''
         # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
         # TRAPINT() {
         #   return $(( 128 + $1 ))
@@ -243,7 +267,8 @@ username,
         }
 
         # Load API keys from sops-nix secrets
-        '' + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
+      ''
+      + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
   };
 
   # Starship prompt
