@@ -31,8 +31,6 @@
   home.packages = with pkgs; [
     # Core Dev Tools
     uv
-    eza
-    bat
 
     # Editors
     pkgs-unstable.helix
@@ -47,14 +45,10 @@
     ngrok
 
     # VCS & CLI
-    gh
-    git-lfs
-    delta
     fd
     ripgrep
     curl
     wget
-    htop
     doctl
 
     # Shell & Terminal
@@ -65,12 +59,6 @@
     # aichat
     # argc
     tabby
-
-    # Fonts
-    jetbrains-mono
-    nerd-fonts.jetbrains-mono
-    nerd-fonts.symbols-only
-    fira-code
 
     # System utilities
     gnupg
@@ -116,7 +104,8 @@
     dp = "v /etc/nix-darwin/configuration.nix";
     de = "v /etc/nix-darwin";
     dr = "ulimit -n 10240 && sudo darwin-rebuild switch";
-    du = "ulimit -n 10240 && nix flake update --flake /etc/nix-darwin/";
+    dfu = "nix flake update --flake /etc/nix-darwin/";
+    ngc = "nh clean all --keep 5";
     dcd = "cd /etc/nix-darwin/";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
@@ -147,15 +136,6 @@
 
     # Docker
     d = "docker";
-
-    # Claude with alternative model providers
-    # claude-deepseek = "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=\${DEEPSEEK_API_KEY} ANTHROPIC_MODEL=deepseek-chat ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner claude";
-    # claude-xai = "ANTHROPIC_BASE_URL=https://api.x.ai/ ANTHROPIC_AUTH_TOKEN=\${XAI_API_KEY} ANTHROPIC_MODEL=grok-code-fast-1 ANTHROPIC_SMALL_FAST_MODEL=grok-code-fast-1 ANTHROPIC_DEFAULT_SONNET_MODEL=grok-code-fast-1 ANTHROPIC_DEFAULT_OPUS_MODEL=grok-4 claude";
-    # claude-zai = "ANTHROPIC_AUTH_TOKEN=\${Z_AI_API_KEY} ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ANTHROPIC_MODEL=GLM-4.6 ANTHROPIC_SMALL_FAST_MODEL=GLM-4.6-Air claude";
-    # claude-qwen = "ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy ANTHROPIC_AUTH_TOKEN=\${QWEN_API_KEY} ANTHROPIC_MODEL=Qwen3-Coder-Plus ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max claude";
-    # claude-kimi = "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic ANTHROPIC_AUTH_TOKEN=\${MOONSHOT_API_KEY} ANTHROPIC_MODEL=kimi-k2-turbo-preview ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2-turbo-preview ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-k2-turbo-preview ANTHROPIC_SMALL_FAST_MODEL=kimi-k2-turbo-preview claude";
-    # claude-router = "ANTHROPIC_BASE_URL=http://127.0.0.1:8080 claude";
-    # claude-minimax = "ANTHROPIC_AUTH_TOKEN=\${MINIMAX_API_KEY} ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_MODEL=MiniMax-M2 ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2 ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2 API_TIMEOUT_MS=3000000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude";
   };
 
   programs.mise = {
@@ -201,6 +181,17 @@
       ];
     };
     syntaxHighlighting.enable = true;
+
+    history = {
+      size = 100000;
+      save = 100000;
+      ignoreDups = true;
+      ignoreAllDups = true;
+      ignoreSpace = true;
+      expireDuplicatesFirst = true;
+      share = true;
+      extended = true;
+    };
 
     initContent =
       let
@@ -370,6 +361,14 @@
           tmux select-pane -t "''${panes[0]}"
         }
 
+        # Git push current branch with force-with-lease
+        gpb() {
+          git push origin "$(git rev-parse --abbrev-ref HEAD)" --force-with-lease -u
+        }
+
+        # OpenAI Codex shell completion
+        eval "$(codex completion zsh)"
+
         # Load API keys from sops-nix secrets
       ''
       + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
@@ -413,7 +412,160 @@
   };
 
   # FZF (fuzzy finder)
-  programs.fzf.enable = true;
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = true;
+    defaultCommand = "fd --type f --hidden --follow --exclude .git";
+    defaultOptions = [
+      "--height 40%"
+      "--layout=reverse"
+      "--border"
+    ];
+    fileWidgetCommand = "fd --type f --hidden --follow --exclude .git";
+    fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
+    changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
+    changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
+  };
+
+  # Git
+  programs.git = {
+    enable = true;
+    lfs.enable = true;
+    ignores = [
+      ".DS_Store"
+      "*.swp"
+      "*~"
+      ".direnv/"
+      ".devenv/"
+    ];
+    settings = {
+      user = {
+        name = "Nick Pupko";
+        email = "work.pupko@gmail.com";
+      };
+      init.defaultBranch = "main";
+      pull.rebase = true;
+      push = {
+        autoSetupRemote = true;
+        default = "current";
+      };
+      rebase.autoStash = true;
+      merge.conflictstyle = "zdiff3";
+      diff.algorithm = "histogram";
+      rerere.enabled = true;
+      column.ui = "auto";
+      branch.sort = "-committerdate";
+      fetch.prune = true;
+      # Performance (git 2.37+)
+      feature.manyFiles = true;
+      core.fsmonitor = true;
+      fetch.writeCommitGraph = true;
+      checkout.workers = 0;
+      alias = {
+        st = "status -sb";
+        co = "checkout";
+        lg = "log --oneline --graph --decorate --all";
+        amend = "commit --amend --no-edit";
+      };
+    };
+  };
+
+  # Delta (git diff pager)
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
+    options = {
+      navigate = true;
+      side-by-side = true;
+      line-numbers = true;
+      syntax-theme = "gruvbox-dark";
+    };
+  };
+
+  # Ghostty terminal (installed via Homebrew cask)
+  programs.ghostty = {
+    enable = true;
+    package = null;
+    enableZshIntegration = true;
+    installBatSyntax = false;
+    settings = {
+      font-size = 13;
+      font-thicken = true;
+      theme = "Gruvbox Dark";
+      bell-features = "title,attention,audio,system";
+      font-family = [
+        "JetBrains Mono"
+        "Fira Code"
+        "Symbols Nerd Font Mono"
+        "STIX Two Math"
+        "Noto Sans Symbols 2"
+        "Apple Color Emoji"
+      ];
+      clipboard-paste-protection = false;
+      desktop-notifications = true;
+      window-decoration = true;
+      background-opacity = 1;
+      background-blur-radius = 0;
+      cursor-style = "block";
+      shell-integration-features = "no-cursor";
+      adjust-cell-height = "20%";
+      adjust-cursor-height = "20%";
+      macos-option-as-alt = "left";
+      keybind = [
+        "global:cmd+grave_accent=toggle_quick_terminal"
+        "shift+enter=text:\\n"
+        "super+r=reload_config"
+      ];
+      window-save-state = "always";
+      mouse-scroll-multiplier = 0.95;
+      tab-inherit-working-directory = true;
+      split-inherit-working-directory = true;
+      notify-on-command-finish = "unfocused";
+      notify-on-command-finish-action = "notify";
+      notify-on-command-finish-after = "30s";
+    };
+  };
+
+  # Eza (modern ls)
+  programs.eza = {
+    enable = true;
+    enableZshIntegration = true;
+    icons = "auto";
+    git = true;
+    extraOptions = [
+      "--group-directories-first"
+      "--header"
+    ];
+  };
+
+  # Bat (modern cat)
+  programs.bat = {
+    enable = true;
+    config = {
+      theme = "gruvbox-dark";
+      style = "numbers,changes,header";
+    };
+  };
+
+  # Btop (system monitor)
+  programs.btop = {
+    enable = true;
+    settings = {
+      color_theme = "gruvbox_dark_v2";
+      theme_background = false;
+      vim_keys = true;
+    };
+  };
+
+  # GitHub CLI
+  programs.gh = {
+    enable = true;
+    settings = {
+      git_protocol = "ssh";
+      editor = "nvim";
+    };
+    gitCredentialHelper.enable = true;
+  };
 
   # Tmux
   programs.tmux = {

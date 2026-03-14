@@ -24,6 +24,78 @@
     shell = pkgs.zsh;
   };
 
+  # Hostname
+  networking.hostName = "m1";
+  networking.computerName = "m1";
+
+  # macOS system preferences
+  system.defaults = {
+    dock = {
+      autohide = true;
+      autohide-delay = 0.0;
+      autohide-time-modifier = 0.4;
+      tilesize = 48;
+      magnification = false;
+      show-recents = false;
+      minimize-to-application = true;
+      mru-spaces = false;
+      orientation = "bottom";
+      showhidden = true;
+    };
+    finder = {
+      AppleShowAllExtensions = true;
+      QuitMenuItem = true;
+      ShowPathbar = true;
+      ShowStatusBar = true;
+      _FXShowPosixPathInTitle = true;
+      _FXSortFoldersFirst = true;
+      FXDefaultSearchScope = "SCcf";
+      FXPreferredViewStyle = "Nlsv";
+      FXEnableExtensionChangeWarning = false;
+    };
+    NSGlobalDomain = {
+      AppleShowAllExtensions = true;
+      AppleInterfaceStyleSwitchesAutomatically = true;
+      NSAutomaticCapitalizationEnabled = false;
+      NSAutomaticDashSubstitutionEnabled = false;
+      NSAutomaticPeriodSubstitutionEnabled = false;
+      NSAutomaticQuoteSubstitutionEnabled = false;
+      NSAutomaticSpellingCorrectionEnabled = false;
+      InitialKeyRepeat = 15;
+      KeyRepeat = 2;
+      "com.apple.swipescrolldirection" = true;
+      AppleShowAllFiles = true;
+      _HIHideMenuBar = false;
+    };
+    trackpad = {
+      Clicking = false;
+      TrackpadRightClick = true;
+      TrackpadThreeFingerDrag = false;
+    };
+    screencapture = {
+      location = "/Users/random/Screenshots";
+      type = "png";
+      disable-shadow = true;
+    };
+    loginwindow.GuestEnabled = false;
+    menuExtraClock.Show24Hour = true;
+    CustomUserPreferences = {
+      NSGlobalDomain.ApplePressAndHoldEnabled = false;
+      "com.apple.desktopservices" = {
+        DSDontWriteNetworkStores = true;
+        DSDontWriteUSBStores = true;
+      };
+    };
+  };
+
+  # System-level fonts
+  fonts.packages = with pkgs; [
+    jetbrains-mono
+    nerd-fonts.jetbrains-mono
+    nerd-fonts.symbols-only
+    fira-code
+  ];
+
   # Homebrew (managed by nix-darwin)
   homebrew = {
     enable = true;
