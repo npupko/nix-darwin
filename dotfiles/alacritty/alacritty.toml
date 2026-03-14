@@ -4,6 +4,9 @@ TERM = "xterm-256color"
 [terminal]
 osc52 = "CopyPaste"
 
+[bell]
+command = { program = "osascript", args = ["-e", "display notification \"Task complete\" with title \"Alacritty\""] }
+
 [font]
 normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
 bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }

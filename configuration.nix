@@ -94,6 +94,8 @@
     nerd-fonts.jetbrains-mono
     nerd-fonts.symbols-only
     fira-code
+    stix-two
+    noto-fonts-symbols
   ];
 
   # Raise macOS file descriptor limits (default 256 is too low for Nix)
