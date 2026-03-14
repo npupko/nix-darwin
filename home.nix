@@ -251,37 +251,28 @@ username,
     enable = true;
     enableZshIntegration = true;
     settings = {
-      add_newline = true;
-      command_timeout = 200;
-      format = "[$directory$git_branch$git_status]($style)$character";
-      character = {
-        error_symbol = "[✗](bold cyan)";
-        success_symbol = "[❯](bold cyan)";
-      };
+      add_newline = false;
+      format = "$directory$git_branch$git_state$git_status$cmd_duration$line_break$character";
       directory = {
-        truncation_length = 2;
-        truncation_symbol = "…/";
-        repo_root_style = "bold cyan";
-        repo_root_format = "[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) ";
+        truncation_length = 3;
+        truncate_to_repo = true;
       };
       git_branch = {
         format = "[$branch]($style) ";
-        style = "italic cyan";
+        style = "bold purple";
       };
       git_status = {
-        format = "[$all_status]($style)";
-        style = "cyan";
-        ahead = "⇡\${count} ";
-        diverged = "⇕⇡\${ahead_count}⇣\${behind_count} ";
-        behind = "⇣\${count} ";
-        conflicted = " ";
-        up_to_date = " ";
-        untracked = "? ";
-        modified  = " ";
-        stashed = "";
-        staged = "";
-        renamed = "";
-        deleted = "";
+        format = "[$all_status$ahead_behind]($style) ";
+        style = "bold red";
+      };
+      character = {
+        success_symbol = "[❯](bold green)";
+        error_symbol = "[❯](bold red)";
+      };
+      cmd_duration = {
+        min_time = 2000;
+        format = "[$duration]($style) ";
+        style = "bold yellow";
       };
     };
   };
