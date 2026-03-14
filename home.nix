@@ -45,8 +45,6 @@
     ngrok
 
     # VCS & CLI
-    fd
-    ripgrep
     curl
     wget
     doctl
@@ -103,7 +101,7 @@
     dh = "v /etc/nix-darwin/home.nix";
     dp = "v /etc/nix-darwin/configuration.nix";
     de = "v /etc/nix-darwin";
-    dr = "ulimit -n 10240 && sudo darwin-rebuild switch";
+    dr = "sudo darwin-rebuild switch";
     dfu = "nix flake update --flake /etc/nix-darwin/";
     ngc = "nh clean all --keep 5";
     dcd = "cd /etc/nix-darwin/";
@@ -379,6 +377,7 @@
     enable = true;
     enableZshIntegration = true;
     settings = {
+      command_timeout = 5000;
       add_newline = false;
       format = "$directory$git_branch$git_state$git_status$cmd_duration$line_break$character";
       directory = {
@@ -425,6 +424,26 @@
     fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
     changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
     changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
+  };
+
+  # Fd (modern find)
+  programs.fd = {
+    enable = true;
+    hidden = true;
+    ignores = [ ".git/" ".direnv/" ".devenv/" "node_modules/" ".next/" "target/" ];
+  };
+
+  # Ripgrep (modern grep)
+  programs.ripgrep = {
+    enable = true;
+    arguments = [
+      "--smart-case"
+      "--hidden"
+      "--glob=!.git/"
+      "--glob=!.direnv/"
+      "--glob=!.devenv/"
+      "--glob=!node_modules/"
+    ];
   };
 
   # Git
@@ -591,6 +610,7 @@
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
+    silent = true;
   };
 
   # SSH agent (auto-start via launchd on macOS)
@@ -610,6 +630,9 @@
           UseKeychain = "yes";
           SetEnv = "TERM=xterm-256color";
         };
+        controlMaster = "auto";
+        controlPath = "~/.ssh/control-%C";
+        controlPersist = "10m";
       };
       "bitbucket-fleetrover" = {
         hostname = "bitbucket.org";
