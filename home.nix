@@ -7,7 +7,6 @@
 # Homebrew casks:       GUI applications
 # Mise:                 Language runtimes + npm/node CLI tools (always latest)
 # Self-managed:         Claude Code (auto-updates via native installer)
-# Manual (1 tool):      serena-agent via uv (not in nixpkgs)
 # =============================================================================
 {
   config,
@@ -33,6 +32,7 @@
     # Core Dev Tools
     uv
     eza
+    bat
 
     # Editors
     pkgs-unstable.helix
@@ -122,7 +122,31 @@
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
     grep = "ug";
-    cx = "claude --dangerously-skip-permissions";
+    c = "claude --dangerously-skip-permissions";
+    cx = "opencode";
+    ls = "eza";
+    ll = "eza -lh --group-directories-first --icons=auto";
+    lla = "eza -lha --group-directories-first --icons=auto";
+    lt = "eza --tree --level=2 --long --icons --git";
+    lta = "eza --tree --level=2 --long --icons --git -a";
+    t = "tmux attach || tmux new -s Work";
+
+    # Directory navigation
+    ".." = "cd ..";
+    "..." = "cd ../..";
+    "...." = "cd ../../..";
+
+    # Git shortcuts
+    g = "git";
+    gcm = "git commit -m";
+    gcam = "git commit -a -m";
+    gcad = "git commit -a --amend";
+
+    # FZF + bat
+    ff = "fzf --preview 'bat --style=numbers --color=always {}'";
+
+    # Docker
+    d = "docker";
 
     # Claude with alternative model providers
     # claude-deepseek = "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=\${DEEPSEEK_API_KEY} ANTHROPIC_MODEL=deepseek-chat ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner claude";
@@ -264,6 +288,86 @@
           API_TIMEOUT_MS=3000000 \
           CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
           claude
+        }
+
+        # Edit fuzzy-found file
+        eff() { ''$EDITOR "''$(ff)"; }
+
+        # Omarchy tmux dev layouts
+        # tdl: 3-pane layout — editor (left), AI (right 30%), terminal (bottom 15%)
+        # Usage: tdl <cx|claude|codex> [<second_ai>]
+        tdl() {
+          [[ -z ''$1 ]] && { echo "Usage: tdl <cx|claude|codex|other_ai> [<second_ai>]"; return 1; }
+          [[ -z ''$TMUX ]] && { echo "You must start tmux to use tdl."; return 1; }
+
+          local current_dir="''$PWD"
+          local editor_pane ai_pane ai2_pane
+          local ai="''$1"
+          local ai2="''$2"
+
+          editor_pane="''$TMUX_PANE"
+          tmux rename-window -t "''$editor_pane" "''$(basename "''$current_dir")"
+          tmux split-window -v -p 15 -t "''$editor_pane" -c "''$current_dir"
+          ai_pane=''$(tmux split-window -h -p 30 -t "''$editor_pane" -c "''$current_dir" -P -F '#{pane_id}')
+          if [[ -n ''$ai2 ]]; then
+            ai2_pane=''$(tmux split-window -v -t "''$ai_pane" -c "''$current_dir" -P -F '#{pane_id}')
+            tmux send-keys -t "''$ai2_pane" "''$ai2" C-m
+          fi
+          tmux send-keys -t "''$ai_pane" "''$ai" C-m
+          tmux send-keys -t "''$editor_pane" "''$EDITOR ." C-m
+          tmux select-pane -t "''$editor_pane"
+        }
+
+        # tdlm: one tdl window per subdirectory (monorepo mode)
+        # Usage: tdlm <cx|claude|codex> [<second_ai>]
+        tdlm() {
+          [[ -z ''$1 ]] && { echo "Usage: tdlm <cx|claude|codex|other_ai> [<second_ai>]"; return 1; }
+          [[ -z ''$TMUX ]] && { echo "You must start tmux to use tdlm."; return 1; }
+
+          local ai="''$1"
+          local ai2="''$2"
+          local base_dir="''$PWD"
+          local first=true
+
+          tmux rename-session "''$(basename "''$base_dir" | tr '.:' '--')"
+
+          for dir in "''$base_dir"/*/; do
+            [[ -d ''$dir ]] || continue
+            local dirpath="''${dir%/}"
+            if ''$first; then
+              tmux send-keys -t "''$TMUX_PANE" "cd '''$dirpath' && tdl ''$ai ''$ai2" C-m
+              first=false
+            else
+              local pane_id=''$(tmux new-window -c "''$dirpath" -P -F '#{pane_id}')
+              tmux send-keys -t "''$pane_id" "tdl ''$ai ''$ai2" C-m
+            fi
+          done
+        }
+
+        # tsl: swarm layout — N panes tiled, all running the same command
+        # Usage: tsl <pane_count> <command>
+        tsl() {
+          [[ -z ''$1 || -z ''$2 ]] && { echo "Usage: tsl <pane_count> <command>"; return 1; }
+          [[ -z ''$TMUX ]] && { echo "You must start tmux to use tsl."; return 1; }
+
+          local count="''$1"
+          local cmd="''$2"
+          local current_dir="''$PWD"
+          local -a panes
+
+          tmux rename-window -t "''$TMUX_PANE" "''$(basename "''$current_dir")"
+          panes+=("''$TMUX_PANE")
+          while (( ''${#panes[@]} < count )); do
+            local new_pane
+            local split_target="''${panes[-1]}"
+            new_pane=''$(tmux split-window -h -t "''$split_target" -c "''$current_dir" -P -F '#{pane_id}')
+            panes+=("''$new_pane")
+            tmux select-layout -t "''${panes[0]}" tiled
+          done
+          for pane in "''${panes[@]}"; do
+            tmux send-keys -t "''$pane" "''$cmd" C-m
+          done
+          tmux select-pane -t "''${panes[0]}"
         }
 
         # Load API keys from sops-nix secrets

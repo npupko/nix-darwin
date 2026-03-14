@@ -48,7 +48,7 @@
     casks = [
       "ghostty@tip"
       "docker-desktop"
-      "tailscale"
+      "tailscale-app"
       "zed"
       "droid"
       "cursor-cli"
