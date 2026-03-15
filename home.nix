@@ -100,13 +100,8 @@ in
             exit 0
           fi
           echo "$available" | tr ' ' '\n' | grep -qx "$t" || { echo "Unknown theme: $t"; exit 1; }
-          before=$(cat /etc/nix-darwin/flake.nix)
+          grep -q '# ACTIVE_THEME' /etc/nix-darwin/flake.nix || { echo "Error: ACTIVE_THEME marker not found in flake.nix" >&2; exit 1; }
           sudo sed -i "s/themeName = \".*\"; # ACTIVE_THEME/themeName = \"$t\"; # ACTIVE_THEME/" /etc/nix-darwin/flake.nix
-          after=$(cat /etc/nix-darwin/flake.nix)
-          if [ "$before" = "$after" ]; then
-            echo "Error: ACTIVE_THEME marker not found in flake.nix" >&2
-            exit 1
-          fi
           echo "Theme set to: $t — run 'dr' to apply."
         '';
     })
