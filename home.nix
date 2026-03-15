@@ -68,6 +68,7 @@
     libffi
     postgresql
     pkg-config
+    cmake
     ffmpeg
     nh
     devenv
@@ -148,6 +149,7 @@
         };
       };
       tools = {
+        rust = "latest";
         node = "latest";
         bun = "latest";
         "npm:typescript" = "latest";
@@ -164,6 +166,13 @@
         # Dev tools
         "npm:vercel" = "latest";
         "npm:eas-cli" = "latest";
+
+        # Voice-to-text
+        "cargo:https://github.com/peteonrails/voxtype" = {
+          version = "tag:v0.6.0-rc.2";
+          crate = "voxtype";
+          features = "gpu-metal";
+        };
       };
     };
   };
