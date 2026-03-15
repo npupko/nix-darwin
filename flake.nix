@@ -40,6 +40,8 @@
       username = "random";
       system = "aarch64-darwin";
       hostname = "m1";
+      themes = import ./themes.nix;
+      themeName = "gruvbox-dark"; # ACTIVE_THEME
     in
     {
       darwinConfigurations.${hostname} = inputs.nix-darwin.lib.darwinSystem {
@@ -86,7 +88,7 @@
               useUserPackages = true;
               backupFileExtension = "backup";
               extraSpecialArgs = {
-                inherit inputs username;
+                inherit inputs username themes themeName;
                 pkgs-unstable = import inputs.nixpkgs-unstable {
                   inherit system;
                   config.allowUnfree = true;

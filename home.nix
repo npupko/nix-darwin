@@ -15,8 +15,13 @@
   lib,
   inputs,
   username,
+  themes,
+  themeName,
   ...
 }:
+let
+  theme = themes.${themeName};
+in
 {
   imports = [ inputs.sops-nix.homeManagerModules.sops ];
 
@@ -50,7 +55,6 @@
     doctl
 
     # Shell & Terminal
-    alacritty
     zellij
     ugrep
 
@@ -77,6 +81,35 @@
     _1password-cli
     cloudflared
     kubectx
+
+    # Theme switching
+    (pkgs.writeShellApplication {
+      name = "theme-switch";
+      runtimeInputs = [ pkgs.gnused ];
+      text =
+        let
+          availableThemes = builtins.concatStringsSep " " (builtins.attrNames themes);
+        in
+        ''
+          available="${availableThemes}"
+          t="''${1:-}"
+          if [ -z "$t" ]; then
+            current=$(sed -n 's/.*themeName = "\(.*\)";.*# ACTIVE_THEME/\1/p' /etc/nix-darwin/flake.nix)
+            echo "Current: $current"
+            echo "Available: $available"
+            exit 0
+          fi
+          echo "$available" | tr ' ' '\n' | grep -qx "$t" || { echo "Unknown theme: $t"; exit 1; }
+          before=$(cat /etc/nix-darwin/flake.nix)
+          sudo sed -i "s/themeName = \".*\"; # ACTIVE_THEME/themeName = \"$t\"; # ACTIVE_THEME/" /etc/nix-darwin/flake.nix
+          after=$(cat /etc/nix-darwin/flake.nix)
+          if [ "$before" = "$after" ]; then
+            echo "Error: ACTIVE_THEME marker not found in flake.nix" >&2
+            exit 1
+          fi
+          echo "Theme set to: $t — run 'dr' to apply."
+        '';
+    })
   ];
 
   # Session variables
@@ -396,20 +429,20 @@
       };
       git_branch = {
         format = "[$branch]($style) ";
-        style = "bold purple";
+        style = "bold ${theme.starship.branch}";
       };
       git_status = {
         format = "[$all_status$ahead_behind]($style) ";
-        style = "bold red";
+        style = "bold ${theme.starship.dirty}";
       };
       character = {
-        success_symbol = "[❯](bold green)";
-        error_symbol = "[❯](bold red)";
+        success_symbol = "[❯](bold ${theme.starship.ok})";
+        error_symbol = "[❯](bold ${theme.starship.err})";
       };
       cmd_duration = {
         min_time = 2000;
         format = "[$duration]($style) ";
-        style = "bold yellow";
+        style = "bold ${theme.starship.duration}";
       };
     };
   };
@@ -434,6 +467,20 @@
     fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
     changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
     changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
+    colors = {
+      bg = theme.palette.bg;
+      fg = theme.palette.fg;
+      "bg+" = theme.palette.selection;
+      "fg+" = theme.palette.brwhite;
+      hl = theme.palette.blue;
+      "hl+" = theme.palette.brblue;
+      info = theme.palette.yellow;
+      prompt = theme.palette.blue;
+      pointer = theme.palette.brred;
+      marker = theme.palette.brgreen;
+      spinner = theme.palette.yellow;
+      header = theme.palette.blue;
+    };
   };
 
   # Fd (modern find)
@@ -507,7 +554,7 @@
       navigate = true;
       side-by-side = true;
       line-numbers = true;
-      syntax-theme = "gruvbox-dark";
+      syntax-theme = theme.delta;
     };
   };
 
@@ -520,7 +567,7 @@
     settings = {
       font-size = 13;
       font-thicken = true;
-      theme = "Gruvbox Dark";
+      theme = theme.ghostty;
       bell-features = "title,attention,audio,system";
       font-family = [
         "JetBrains Mono"
@@ -571,8 +618,52 @@
   programs.bat = {
     enable = true;
     config = {
-      theme = "gruvbox-dark";
+      theme = theme.bat;
       style = "numbers,changes,header";
+    };
+  };
+
+  # Alacritty terminal
+  programs.alacritty = {
+    enable = true;
+    theme = theme.alacritty;
+    settings = {
+      env.TERM = "xterm-256color";
+      terminal.osc52 = "CopyPaste";
+      bell.command = {
+        program = "osascript";
+        args = [
+          "-e"
+          ''display notification "Task complete" with title "Alacritty"''
+        ];
+      };
+      font = {
+        normal = {
+          family = "JetBrainsMono Nerd Font";
+          style = "Regular";
+        };
+        bold = {
+          family = "JetBrainsMono Nerd Font";
+          style = "Bold";
+        };
+        italic = {
+          family = "JetBrainsMono Nerd Font";
+          style = "Italic";
+        };
+        size = 13;
+        offset.y = 4;
+      };
+      window = {
+        decorations = "Full";
+        option_as_alt = "OnlyLeft";
+      };
+      keyboard.bindings = [
+        {
+          key = "Return";
+          mods = "Shift";
+          chars = "\\x1b\\r";
+        }
+      ];
     };
   };
 
@@ -580,7 +671,7 @@
   programs.btop = {
     enable = true;
     settings = {
-      color_theme = "gruvbox_dark_v2";
+      color_theme = theme.btop;
       theme_background = false;
       vim_keys = true;
     };
@@ -613,7 +704,20 @@
     #   }
     # ];
     shell = "${pkgs.zsh}/bin/zsh";
-    extraConfig = builtins.readFile ./dotfiles/.tmux.conf;
+    extraConfig = builtins.readFile ./dotfiles/.tmux.conf + ''
+      # Theme (generated)
+      set -g status-style "bg=default,fg=default"
+      set -g status-left "#[fg=black,bg=${theme.tmux.accent},bold] #S #[bg=default] "
+      set -g status-right "#[fg=${theme.tmux.accent}]#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
+      set -g window-status-format "#[fg=brightblack] #I:#W "
+      set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
+      set -g pane-border-style "fg=brightblack"
+      set -g pane-active-border-style "fg=${theme.tmux.accent}"
+      set -g message-style "bg=default,fg=${theme.tmux.accent}"
+      set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
+      set -g mode-style "bg=${theme.tmux.accent},fg=black"
+      setw -g clock-mode-colour ${theme.tmux.accent}
+    '';
   };
 
   # Direnv with nix-direnv
@@ -701,8 +805,12 @@
   # Dotfiles
   home.file = {
     ".config/jj/config.toml".source = ./dotfiles/jj/config.toml;
-    ".config/zellij/config.kdl".source = ./dotfiles/zellij/config.kdl;
-    ".config/alacritty/alacritty.toml".source = ./dotfiles/alacritty/alacritty.toml;
+    ".config/zellij/config.kdl".text =
+      builtins.replaceStrings
+        [ "@THEME@" ]
+        [ theme.zellij ]
+        (builtins.readFile ./dotfiles/zellij/config.kdl);
+    ".config/theme/current".text = theme.neovim;
     ".aider.conf.yml".source = ./dotfiles/aider.conf.yml;
     ".local/bin/gwt" = {
       source = ./dotfiles/bin/gwt;
