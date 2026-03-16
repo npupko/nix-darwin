@@ -101,8 +101,18 @@ in
           fi
           echo "$available" | tr ' ' '\n' | grep -qx "$t" || { echo "Unknown theme: $t"; exit 1; }
           grep -q '# ACTIVE_THEME' /etc/nix-darwin/flake.nix || { echo "Error: ACTIVE_THEME marker not found in flake.nix" >&2; exit 1; }
+          current=$(sed -n 's/.*themeName = "\(.*\)";.*# ACTIVE_THEME/\1/p' /etc/nix-darwin/flake.nix)
+          if [ "$current" = "$t" ]; then
+            echo "Already on theme: $t"
+            exit 0
+          fi
           sudo sed -i "s/themeName = \".*\"; # ACTIVE_THEME/themeName = \"$t\"; # ACTIVE_THEME/" /etc/nix-darwin/flake.nix
-          echo "Theme set to: $t — run 'dr' to apply."
+          echo "Theme set to: $t — rebuilding..."
+          sudo darwin-rebuild switch
+          # Reload tmux config (if tmux is running)
+          tmux source-file ~/.config/tmux/tmux.conf 2>/dev/null || true
+          # Ghostty auto-reloads its config on file change
+          echo "Theme applied: $t"
         '';
     })
   ];
@@ -132,7 +142,7 @@ in
     dp = "v /etc/nix-darwin/configuration.nix";
     de = "v /etc/nix-darwin";
     dr = "sudo darwin-rebuild switch";
-    dfu = "nix flake update --flake /etc/nix-darwin/";
+    duf = "nix flake update --flake /etc/nix-darwin/";
     ngc = "nh clean all --keep 5";
     dcd = "cd /etc/nix-darwin/";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
@@ -415,7 +425,7 @@ in
     enable = true;
     enableZshIntegration = true;
     settings = {
-      command_timeout = 5000;
+      command_timeout = 500;
       add_newline = false;
       format = "$directory$git_branch$git_state$git_status$cmd_duration$line_break$character";
       directory = {
@@ -462,20 +472,6 @@ in
     fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
     changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
     changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
-    colors = {
-      bg = theme.palette.bg;
-      fg = theme.palette.fg;
-      "bg+" = theme.palette.selection;
-      "fg+" = theme.palette.brwhite;
-      hl = theme.palette.blue;
-      "hl+" = theme.palette.brblue;
-      info = theme.palette.yellow;
-      prompt = theme.palette.blue;
-      pointer = theme.palette.brred;
-      marker = theme.palette.brgreen;
-      spinner = theme.palette.yellow;
-      header = theme.palette.blue;
-    };
   };
 
   # Fd (modern find)
@@ -513,30 +509,69 @@ in
       user = {
         name = "Nick Pupko";
         email = "work.pupko@gmail.com";
+        signingkey = "B6037B82A01D008B264C633B7E3F4D625B0E9E31";
       };
+      commit = {
+        gpgsign = true;
+        verbose = true;
+      };
+      gpg.program = "gpg";
+      tag.gpgSign = true;
       init.defaultBranch = "main";
       pull.rebase = true;
       push = {
         autoSetupRemote = true;
         default = "current";
+        followTags = true;
+        useForceIfIncludes = true;
       };
-      rebase.autoStash = true;
+      rebase = {
+        autoSquash = true;
+        autoStash = true;
+        updateRefs = true;
+        missingCommitsCheck = "error";
+      };
       merge.conflictstyle = "zdiff3";
-      diff.algorithm = "histogram";
-      rerere.enabled = true;
+      mergetool = {
+        path = "nvim";
+        keepBackup = false;
+      };
+      diff = {
+        algorithm = "histogram";
+        colorMoved = "plain";
+        mnemonicPrefix = true;
+        renames = true;
+      };
+      color.ui = "auto";
+      rerere = {
+        enabled = true;
+        autoUpdate = true;
+      };
       column.ui = "auto";
       branch.sort = "-committerdate";
-      fetch.prune = true;
+      tag.sort = "version:refname";
+      help.autocorrect = "prompt";
+      fetch = {
+        prune = true;
+        pruneTags = true;
+        writeCommitGraph = true;
+      };
+      transfer.fsckObjects = true;
+      github.user = "npupko";
+      coderabbit.machineId = "cli/7a1cbaf57305471189ef9d0275574e79";
       # Performance (git 2.37+)
       feature.manyFiles = true;
       core.fsmonitor = true;
-      fetch.writeCommitGraph = true;
+      core.untrackedCache = true;
       checkout.workers = 0;
       alias = {
         st = "status -sb";
         co = "checkout";
+        ci = "commit";
+        br = "branch";
         lg = "log --oneline --graph --decorate --all";
         amend = "commit --amend --no-edit";
+        update = "commit --amend --no-edit";
       };
     };
   };

@@ -4,10 +4,17 @@
 #      (e.g. ghostty uses "Gruvbox Dark", bat uses "gruvbox-dark")
 #    - tmux.accent: a terminal color name (blue, cyan, magenta, etc.)
 #    - starship: override branch/dirty; ok/err/duration inherit from defaultStarship
-#    - palette: 16 ANSI colors as hex values
-# 2. Add a lazy.nvim plugin spec in ~/.config/nvim/lua/plugins/ui/colorscheme.lua
+# 2. VERIFY each tool's theme name actually exists — names differ per tool!
+#    - ghostty: ls /Applications/Ghostty.app/Contents/Resources/ghostty/themes/
+#    - bat:     bat --list-themes
+#    - delta:   delta --list-syntax-themes
+#    - btop:    ls $(nix eval --raw nixpkgs#btop.outPath)/share/btop/themes/
+#    - helix:   ls in helix runtime/themes/
+#    - alacritty: ls $(nix eval --raw nixpkgs#alacritty-theme.outPath)/share/alacritty-theme/
+#    - zellij:  https://zellij.dev/documentation/theme-list.html
+# 3. Add a lazy.nvim plugin spec in ~/.config/nvim/lua/plugins/ui/colorscheme.lua
 #    and add the colorscheme name to install.colorscheme in ~/.config/nvim/init.lua
-# 3. That's it — theme-switch and flake.nix derive the available list automatically
+# 4. That's it — theme-switch and flake.nix derive the available list automatically
 let
   defaultStarship = {
     ok = "green";
@@ -17,7 +24,6 @@ let
 in
 {
   gruvbox-dark = {
-    # Per-tool theme names
     alacritty = "gruvbox_dark";
     ghostty = "Gruvbox Dark";
     bat = "gruvbox-dark";
@@ -31,32 +37,27 @@ in
       branch = "purple";
       dirty = "red";
     };
-    palette = {
-      bg = "#282828";
-      fg = "#ebdbb2";
-      bg1 = "#3c3836";
-      selection = "#504945";
-      red = "#cc241d";
-      green = "#98971a";
-      yellow = "#d79921";
-      blue = "#458588";
-      magenta = "#b16286";
-      cyan = "#689d6a";
-      white = "#a89984";
-      brblack = "#928374";
-      brred = "#fb4934";
-      brgreen = "#b8bb26";
-      bryellow = "#fabd2f";
-      brblue = "#83a598";
-      brmagenta = "#d3869b";
-      brcyan = "#8ec07c";
-      brwhite = "#ebdbb2";
+  };
+
+  gruvbox-light = {
+    alacritty = "gruvbox_light";
+    ghostty = "Gruvbox Light";
+    bat = "gruvbox-light";
+    delta = "gruvbox-light";
+    btop = "gruvbox_light";
+    zellij = "gruvbox-light";
+    helix = "gruvbox_light";
+    neovim = "gruvbox-light";
+    tmux.accent = "yellow";
+    starship = defaultStarship // {
+      branch = "purple";
+      dirty = "red";
     };
   };
 
   nord = {
     alacritty = "nord";
-    ghostty = "nord";
+    ghostty = "Nord";
     bat = "Nord";
     delta = "Nord";
     btop = "nord";
@@ -68,35 +69,30 @@ in
       branch = "blue";
       dirty = "yellow";
     };
-    palette = {
-      bg = "#2e3440";
-      fg = "#d8dee9";
-      bg1 = "#3b4252";
-      selection = "#434c5e";
-      red = "#bf616a";
-      green = "#a3be8c";
-      yellow = "#ebcb8b";
-      blue = "#5e81ac";
-      magenta = "#b48ead";
-      cyan = "#88c0d0";
-      white = "#e5e9f0";
-      brblack = "#4c566a";
-      brred = "#bf616a";
-      brgreen = "#a3be8c";
-      bryellow = "#ebcb8b";
-      brblue = "#81a1c1";
-      brmagenta = "#b48ead";
-      brcyan = "#8fbcbb";
-      brwhite = "#eceff4";
+  };
+
+  catppuccin-latte = {
+    alacritty = "catppuccin_latte";
+    ghostty = "Catppuccin Latte";
+    bat = "Catppuccin Latte";
+    delta = "Catppuccin Latte";
+    btop = "flat-remix-light"; # btop has no catppuccin — closest light match
+    zellij = "catppuccin-latte";
+    helix = "catppuccin_latte";
+    neovim = "catppuccin-latte";
+    tmux.accent = "yellow";
+    starship = defaultStarship // {
+      branch = "magenta";
+      dirty = "yellow";
     };
   };
 
   catppuccin-mocha = {
     alacritty = "catppuccin_mocha";
-    ghostty = "catppuccin-mocha";
+    ghostty = "Catppuccin Mocha";
     bat = "Catppuccin Mocha";
     delta = "Catppuccin Mocha";
-    btop = "catppuccin_mocha";
+    btop = "dracula"; # btop has no catppuccin — closest dark match
     zellij = "catppuccin-mocha";
     helix = "catppuccin_mocha";
     neovim = "catppuccin-mocha";
@@ -104,27 +100,6 @@ in
     starship = defaultStarship // {
       branch = "magenta";
       dirty = "yellow";
-    };
-    palette = {
-      bg = "#1e1e2e";
-      fg = "#cdd6f4";
-      bg1 = "#313244";
-      selection = "#45475a";
-      red = "#f38ba8";
-      green = "#a6e3a1";
-      yellow = "#f9e2af";
-      blue = "#89b4fa";
-      magenta = "#cba6f7";
-      cyan = "#94e2d5";
-      white = "#bac2de";
-      brblack = "#585b70";
-      brred = "#f38ba8";
-      brgreen = "#a6e3a1";
-      bryellow = "#f9e2af";
-      brblue = "#89b4fa";
-      brmagenta = "#cba6f7";
-      brcyan = "#94e2d5";
-      brwhite = "#a6adc8";
     };
   };
 }
