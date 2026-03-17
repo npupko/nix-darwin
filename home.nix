@@ -81,6 +81,8 @@ in
     _1password-cli
     cloudflared
     kubectx
+    bitwarden-desktop
+    terminal-notifier
 
     # Theme switching
     (pkgs.writeShellApplication {
@@ -149,7 +151,10 @@ in
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
     grep = "ug";
-    c = "claude --dangerously-skip-permissions";
+    # Workaround: unset TMUX so Claude Code doesn't fall back to a muted 256-color palette.
+    # Bun's getColorDepth() short-circuits when $TMUX is set, even if the terminal supports truecolor.
+    # https://github.com/anthropics/claude-code/issues/35148
+    c = "env -u TMUX claude --dangerously-skip-permissions";
     cx = "opencode";
     ls = "eza";
     ll = "eza -lh --group-directories-first --icons=auto";
