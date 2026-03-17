@@ -735,10 +735,11 @@ in
     # ];
     shell = "${pkgs.zsh}/bin/zsh";
     extraConfig = builtins.readFile ./dotfiles/.tmux.conf + ''
+
       # Theme (generated)
       set -g status-style "bg=default,fg=default"
       set -g status-left "#[fg=black,bg=${theme.tmux.accent},bold] #S #[bg=default] "
-      set -g status-right "#[fg=${theme.tmux.accent}]#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
+      set -g status-right "#{E:@voxtype}#[fg=${theme.tmux.accent}]#{?pane_in_mode,COPY ,}#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
       set -g window-status-format "#[fg=brightblack] #I:#W "
       set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
       set -g pane-border-style "fg=brightblack"
@@ -860,6 +861,10 @@ in
     };
     ".local/bin/workspace-down" = {
       source = ./dotfiles/bin/workspace-down;
+      executable = true;
+    };
+    ".local/bin/voxtype-tmux" = {
+      source = ./dotfiles/bin/voxtype-tmux;
       executable = true;
     };
   };

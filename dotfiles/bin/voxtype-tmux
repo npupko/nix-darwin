@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Real-time voxtype status for tmux + auto-start daemon.
+
+# Guard: only one watcher instance
+if pgrep -f "voxtype status --follow" >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Auto-start voxtype daemon if not running
+if ! pgrep -f "voxtype daemon" >/dev/null 2>&1 && ! pgrep -f "voxtype$" >/dev/null 2>&1; then
+  voxtype daemon &>/dev/null &
+  disown
+  sleep 1  # Give daemon time to start
+fi
+
+# Stream status changes and push to tmux
+voxtype status --follow --format json 2>/dev/null | while IFS= read -r line; do
+  class=$(printf '%s' "$line" | jq -r '.class' 2>/dev/null) || continue
+  icon=$(printf '%s' "$line" | jq -r '.text' 2>/dev/null)
+  case "$class" in
+    recording)    text="#[fg=red,bold]${icon} " ;;
+    transcribing) text="#[fg=yellow]${icon} " ;;
+    idle)         text="#[fg=brightblack]${icon} " ;;
+    *)            text="" ;;
+  esac
+  tmux set -g @voxtype "$text" 2>/dev/null || exit 0
+  tmux refresh-client -S 2>/dev/null
+done
+
+# voxtype exited — clear indicator
+tmux set -g @voxtype "" 2>/dev/null
+tmux refresh-client -S 2>/dev/null
