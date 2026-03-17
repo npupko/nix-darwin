@@ -125,6 +125,7 @@ in
     JJ_CONFIG = "/Users/${username}/.config/jj/config.toml";
     SOPS_AGE_KEY_FILE = "/Users/${username}/.config/sops/age/keys.txt";
     DEVENV_NIX = "/nix/var/nix/profiles/default";
+    STARSHIP_LOG = "error"; # suppress spurious timeout warnings from git commands under system load
   };
 
   # PATH additions
@@ -430,7 +431,7 @@ in
     enable = true;
     enableZshIntegration = true;
     settings = {
-      command_timeout = 500;
+      command_timeout = 200;
       add_newline = false;
       format = "$directory$git_branch$git_state$git_status$cmd_duration$line_break$character";
       directory = {
