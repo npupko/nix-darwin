@@ -505,11 +505,70 @@ in
     enable = true;
     lfs.enable = true;
     ignores = [
+      # System / editor
       ".DS_Store"
       "*.swp"
       "*~"
+
+      # Nix / devenv
       ".direnv/"
-      ".devenv/"
+      ".devenv*"
+      "devenv*"
+      "devenv.lock"
+      "devenv.local.nix"
+      ".envrc"
+      "shell.nix"
+
+      # Node
+      "node_modules/"
+
+      # Environment
+      ".env.local"
+      ".env.production"
+      ".env.preview"
+      "*.local.*"
+
+      # AI tools
+      ".aider*"
+      ".claude/"
+      ".mcp.json*"
+      ".cursor/"
+      ".kilocode/"
+      ".roo/"
+      ".rooignore"
+      ".roomodes"
+      ".serena/"
+      ".opencode/"
+      "opencode.json"
+      "forge.yaml"
+      "context_portal/"
+      "memory-bank/"
+      ".memory-bank/"
+      ".taskmaster/"
+      "plans"
+      "projectBrief.md"
+      "tmp_code_*"
+
+      # Ruby
+      ".ruby-gemset"
+      ".gems"
+      ".yardoc/"
+      ".solargraph.yml"
+      ".irb_history"
+      ".irbrc"
+
+      # Misc project
+      "/tags/"
+      ".graphqlconfig"
+      ".doc"
+      "doc"
+      ".duderc.yml"
+      "docker-compose.override.yml"
+      "local/"
+      "coverage/"
+      ".ignore"
+      ".ripgreprc"
+      "mise.local.toml"
     ];
     settings = {
       user = {
