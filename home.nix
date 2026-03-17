@@ -569,6 +569,7 @@ in
       ".ignore"
       ".ripgreprc"
       "mise.local.toml"
+      "*_cache*.json"
     ];
     settings = {
       user = {
@@ -895,6 +896,7 @@ in
       REQUESTY_BASE_URL = { };
       LINEAR_API_KEY = { };
       ELEVENLABS_API_KEY = { };
+      FIREWORKS_API_KEY = { };
     };
   };
 
