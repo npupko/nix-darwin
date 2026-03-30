@@ -61,11 +61,11 @@ in
     # AI Tools
     # aichat
     # argc
-    tabby
+    # tabby # broken: metrics-0.22.3 fails with newer rustc (rust-lang/rust#141402)
 
     # System utilities
     gnupg
-    gnused
+    # gnused
     coreutils
     automake
     bash
@@ -126,6 +126,13 @@ in
     SOPS_AGE_KEY_FILE = "/Users/${username}/.config/sops/age/keys.txt";
     DEVENV_NIX = "/nix/var/nix/profiles/default";
     STARSHIP_LOG = "error"; # suppress spurious timeout warnings from git commands under system load
+
+    # Aider config (not secrets — just preferences)
+    AIDER_DARK_MODE = "true";
+    AIDER_CODE_THEME = "gruvbox-dark";
+
+    # API base URLs (not secrets)
+    REQUESTY_BASE_URL = "https://router.requesty.ai/v1";
   };
 
   # PATH additions
@@ -418,8 +425,8 @@ in
           git push origin "$(git rev-parse --abbrev-ref HEAD)" --force-with-lease -u
         }
 
-        # OpenAI Codex shell completion
-        eval "$(codex completion zsh)"
+        # OpenAI Codex shell completion (via mise shim, available before activate hooks)
+        [[ -x "$HOME/.local/share/mise/shims/codex" ]] && eval "$("$HOME/.local/share/mise/shims/codex" completion zsh)"
 
         # Load API keys from sops-nix secrets
       ''
@@ -504,6 +511,7 @@ in
   programs.git = {
     enable = true;
     lfs.enable = true;
+    signing.format = "openpgp";
     ignores = [
       # System / editor
       ".DS_Store"
@@ -868,36 +876,43 @@ in
     age.keyFile = "/Users/${username}/.config/sops/age/keys.txt";
 
     # Individual secrets - each becomes a file
-    secrets = {
-      COPILOT_PROXY_URL = { };
-      XAI_API_KEY = { };
-      TMUXAI_OPENROUTER_API_KEY = { };
-      AIDER_DARK_MODE = { };
-      AIDER_CODE_THEME = { };
-      OPENROUTER_API_KEY = { };
-      REF_API_KEY = { };
-      GITHUB_READ_ONLY_PAT = { };
-      DEEPSEEK_API_KEY = { };
-      MOONSHOT_API_KEY = { };
-      QWEN_API_KEY = { };
-      Z_AI_API_KEY = { };
-      TAVILY_API_KEY = { };
-      CEREBRAS_API_KEY = { };
-      HARVEST_TOKEN = { };
-      HF_TOKEN = { };
-      MINIMAX_API_KEY = { };
-      OPENAI_API_KEY = { };
-      SENTRY_API_KEY = { };
-      BRAVE_API_KEY = { };
-      GEMINI_API_KEY = { };
-      NEW_OPENAI_API_KEY = { };
-      GOOGLE_PLACES_API_KEY = { };
-      REQUESTY_API_KEY = { };
-      REQUESTY_BASE_URL = { };
-      LINEAR_API_KEY = { };
-      ELEVENLABS_API_KEY = { };
-      FIREWORKS_API_KEY = { };
-    };
+    secrets = lib.genAttrs [
+      # AI/LLM providers
+      "OPENAI_API_KEY"
+      "DEEPSEEK_API_KEY"
+      "XAI_API_KEY"
+      "QWEN_API_KEY"
+      "MOONSHOT_API_KEY"
+      "Z_AI_API_KEY"
+      "MINIMAX_API_KEY"
+      "GEMINI_API_KEY"
+      "CEREBRAS_API_KEY"
+
+      # AI routing & proxying
+      "OPENROUTER_API_KEY"
+      "TMUXAI_OPENROUTER_API_KEY"
+      "COPILOT_PROXY_URL"
+      "REF_API_KEY"
+      "REQUESTY_API_KEY"
+
+      # Search & research
+      "TAVILY_API_KEY"
+      "BRAVE_API_KEY"
+
+      # Dev tools & services
+      "GITHUB_READ_ONLY_PAT"
+      "LINEAR_API_KEY"
+      "SENTRY_API_KEY"
+      "HF_TOKEN"
+      "HARVEST_TOKEN"
+
+      # Other APIs
+      "GOOGLE_PLACES_API_KEY"
+      "ELEVENLABS_API_KEY"
+      "CIVITAI_API_KEY"
+      "FIREWORKS_API_KEY"
+      "PARALLEL_API_KEY"
+    ] (_: { });
   };
 
   # Dotfiles

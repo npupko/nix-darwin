@@ -137,6 +137,7 @@
     casks = [
       "ghostty@tip"
       "docker-desktop"
+      # "orbstack"
       "tailscale-app"
       "zed"
       "droid"
