@@ -85,6 +85,15 @@
         DSDontWriteNetworkStores = true;
         DSDontWriteUSBStores = true;
       };
+      # Allow Nix store binaries (ad-hoc signed) to access the local network.
+      # macOS Sequoia+ Local Network Privacy blocks them because tmux detaches
+      # from the terminal (Ghostty), so macOS can't trace a "responsible code"
+      # back to a signed app. Whitelisting the subnet bypasses the check.
+      # See: https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
+      "com.apple.network.local-network" = {
+        "Allowed Wi Fi Local Network Addresses" = [ "192.168.50.0/24" ];
+        "Allowed Ethernet Local Network Addresses" = [ "192.168.50.0/24" ];
+      };
     };
   };
 

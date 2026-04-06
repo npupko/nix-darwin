@@ -25,7 +25,7 @@ in
 {
   imports = [ inputs.sops-nix.homeManagerModules.sops ];
 
-  home.stateVersion = "24.11";
+  home.stateVersion = "26.05";
 
   # Disable manual generation to avoid builtins.toFile warning (home-manager #7935)
   manual.manpages.enable = false;
@@ -48,11 +48,13 @@ in
     awscli2
     kubectl
     ngrok
+    qmk
 
     # VCS & CLI
     curl
     wget
     doctl
+    tree-sitter
 
     # Shell & Terminal
     zellij
@@ -822,6 +824,7 @@ in
       set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
       setw -g clock-mode-colour ${theme.tmux.accent}
+      unbind -T root MouseDrag1Border
     '';
   };
 
@@ -835,7 +838,6 @@ in
   # SSH agent (auto-start via launchd on macOS)
   services.ssh-agent = {
     enable = true;
-    enableZshIntegration = true;
   };
 
   # SSH client configuration
@@ -912,6 +914,7 @@ in
       "CIVITAI_API_KEY"
       "FIREWORKS_API_KEY"
       "PARALLEL_API_KEY"
+      "STITCH_API_KEY"
     ] (_: { });
   };
 
