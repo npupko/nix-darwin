@@ -80,6 +80,7 @@ in
     devenv
     pinentry_mac
     sops
+    age
     _1password-cli
     cloudflared
     kubectx
@@ -125,7 +126,6 @@ in
   home.sessionVariables = {
     EDITOR = "nvim";
     JJ_CONFIG = "/Users/${username}/.config/jj/config.toml";
-    SOPS_AGE_KEY_FILE = "/Users/${username}/.config/sops/age/keys.txt";
     DEVENV_NIX = "/nix/var/nix/profiles/default";
     STARSHIP_LOG = "error"; # suppress spurious timeout warnings from git commands under system load
 
@@ -157,6 +157,7 @@ in
     duf = "nix flake update --flake /etc/nix-darwin/";
     ngc = "nh clean all --keep 5";
     dcd = "cd /etc/nix-darwin/";
+    ds = "SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt sops /etc/nix-darwin/secrets.yaml";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
@@ -215,6 +216,7 @@ in
         "npm:@qwen-code/qwen-code" = "latest";
         "npm:opencode-ai" = "latest";
         "npm:@musistudio/claude-code-router" = "latest";
+        "npm:@mariozechner/pi-coding-agent" = "latest";
 
         # Dev tools
         "npm:vercel" = "latest";
@@ -311,6 +313,17 @@ in
           ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus \
           ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus \
           ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max \
+          claude
+        }
+
+        claude-fireworks() {
+          ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
+          ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
+          ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+          ANTHROPIC_SMALL_FAST_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
           claude
         }
 
@@ -695,7 +708,7 @@ in
       macos-option-as-alt = "left";
       keybind = [
         "global:cmd+grave_accent=toggle_quick_terminal"
-        "shift+enter=text:\\n"
+        # "shift+enter=text:\\n"
         "super+r=reload_config"
       ];
       window-save-state = "always";
@@ -823,6 +836,8 @@ in
       set -g message-style "bg=default,fg=${theme.tmux.accent}"
       set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
+      set -g extended-keys on
+      set -g extended-keys-format csi-u
       setw -g clock-mode-colour ${theme.tmux.accent}
       unbind -T root MouseDrag1Border
     '';
