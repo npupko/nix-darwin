@@ -217,6 +217,7 @@ in
         "npm:opencode-ai" = "latest";
         "npm:@musistudio/claude-code-router" = "latest";
         "npm:@mariozechner/pi-coding-agent" = "latest";
+        "npm:@playwright/cli" = "latest";
 
         # Dev tools
         "npm:vercel" = "latest";
@@ -836,8 +837,11 @@ in
       set -g message-style "bg=default,fg=${theme.tmux.accent}"
       set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
-      set -g extended-keys on
-      set -g extended-keys-format csi-u
+      # set -g extended-keys on
+      set -s extended-keys on
+      set -s extended-keys-format csi-u
+      # set -as terminal-features 'xterm*:extkeys'
+
       setw -g clock-mode-colour ${theme.tmux.accent}
       unbind -T root MouseDrag1Border
     '';
