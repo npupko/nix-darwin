@@ -135,6 +135,15 @@ in
 
     # API base URLs (not secrets)
     REQUESTY_BASE_URL = "https://router.requesty.ai/v1";
+
+    # XDG base directories — macOS doesn't set these by default, but most CLI
+    # tools (sops, gh, kubectl, jj, nvim, starship, ...) either honor XDG when
+    # set or already default to ~/.config. Declare them so every CLI resolves
+    # config/cache/data/state in the same XDG-aligned tree as Linux.
+    XDG_CONFIG_HOME = "/Users/${username}/.config";
+    XDG_CACHE_HOME = "/Users/${username}/.cache";
+    XDG_DATA_HOME = "/Users/${username}/.local/share";
+    XDG_STATE_HOME = "/Users/${username}/.local/state";
   };
 
   # PATH additions
