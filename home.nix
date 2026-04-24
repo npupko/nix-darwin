@@ -269,13 +269,6 @@ in
     };
 
     initContent =
-      let
-        loadSecret = name: ''
-          if [[ -f "${config.sops.secrets.${name}.path}" ]]; then
-            export ${name}="$(cat "${config.sops.secrets.${name}.path}")"
-          fi
-        '';
-      in
       lib.mkMerge [
         # Prepend completion cache dir to fpath BEFORE compinit (HM order 570),
         # so compinit autoloads _codex lazily. File is refreshed in activation
@@ -468,9 +461,10 @@ in
           git push origin "$(git rev-parse --abbrev-ref HEAD)" --force-with-lease -u
         }
 
-        # Load API keys from sops-nix secrets
-      ''
-        + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets))
+        # Load API keys from sops-nix (single rendered dotenv, ~140ms saved vs per-key cat loop)
+        [[ -o interactive && -f "${config.sops.templates."api-keys.env".path}" ]] && \
+          source "${config.sops.templates."api-keys.env".path}"
+        '')
       ];
   };
 
@@ -940,7 +934,9 @@ in
     };
   };
 
-  # sops-nix secrets configuration (using age - recommended for macOS)
+  # sops-nix secrets configuration (using age - recommended for macOS).
+  # Format kept as yaml: sops-nix only supports per-key extract on yaml/json
+  # (dotenv/ini return whole file per secret — unusable with `sops.placeholder`).
   sops = {
     defaultSopsFile = ./secrets.yaml;
 
@@ -949,6 +945,13 @@ in
 
     # Use dedicated age key file
     age.keyFile = "/Users/${username}/.config/sops/age/keys.txt";
+
+    # Consolidated dotenv file rendered at activation — single file shell sources
+    # once at startup instead of one `cat` per key. Values single-quoted (safe:
+    # current values contain no single quotes).
+    templates."api-keys.env".content = lib.concatMapStrings (name: ''
+      export ${name}='${config.sops.placeholder.${name}}'
+    '') (lib.attrNames config.sops.secrets);
 
     # Individual secrets - each becomes a file
     secrets = lib.genAttrs [
