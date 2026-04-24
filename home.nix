@@ -40,7 +40,8 @@ in
     # Editors
     pkgs-unstable.helix
     pkgs-unstable.neovim
-    markdown-oxide
+    # markdown-oxide
+    marksman
 
     # Cloud/Infra
     terraform
@@ -59,6 +60,7 @@ in
     # Shell & Terminal
     zellij
     ugrep
+    bfs
 
     # AI Tools
     # aichat
@@ -170,11 +172,9 @@ in
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
-    grep = "ug";
-    # Workaround: unset TMUX so Claude Code doesn't fall back to a muted 256-color palette.
-    # Bun's getColorDepth() short-circuits when $TMUX is set, even if the terminal supports truecolor.
-    # https://github.com/anthropics/claude-code/issues/35148
-    c = "env -u TMUX claude --dangerously-skip-permissions";
+    grep = "ug -G";
+    find = "bfs";
+    c = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
     cx = "opencode";
     ls = "eza";
     ll = "eza -lh --group-directories-first --icons=auto";
@@ -217,6 +217,7 @@ in
         bun = "latest";
         "npm:typescript" = "latest";
         "npm:typescript-language-server" = "latest";
+        "github:basecamp/fizzy-cli" = "latest";
 
         # AI CLI tools
         "npm:@google/gemini-cli" = "latest";
@@ -227,6 +228,7 @@ in
         "npm:@musistudio/claude-code-router" = "latest";
         "npm:@mariozechner/pi-coding-agent" = "latest";
         "npm:@playwright/cli" = "latest";
+        "cargo:rtk-ai/rtk" = "latest";
 
         # Dev tools
         "npm:vercel" = "latest";
@@ -282,9 +284,6 @@ in
 
         # Initialize try.rb for project shortcuts
         eval "$($HOME/.local/try.rb init $HOME/Projects/tries)"
-
-        # Initialize jjt for jujutsu workspaces
-        eval "$($HOME/.local/bin/jjt init $HOME/src/workspaces)"
 
         # Claude with alternative model providers
         claude-deepseek() {
@@ -350,6 +349,17 @@ in
         claude-router() {
           ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
           claude
+        }
+
+        cproxy() {
+          local u p url
+          u=$(jq -sRr @uri <<<"$PROXY_USER")
+          p=$(jq -sRr @uri <<<"$PROXY_PASS")
+          url="https://$u:$p@$PROXY_HOST:$PROXY_PORT"
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+          HTTPS_PROXY="$url" \
+            NO_PROXY="localhost,127.0.0.1,::1" \
+            claude --dangerously-skip-permissions "$@"
         }
 
         claude-minimax() {
@@ -458,6 +468,16 @@ in
       + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
   };
 
+  # Bash shell (minimal — zsh is primary)
+  programs.bash = {
+    enable = true;
+    initExtra = ''
+      export VOLTA_HOME="$HOME/.volta"
+      export PATH="$VOLTA_HOME/bin:$PATH"
+      export PATH="$PATH:$HOME/.maestro/bin"
+    '';
+  };
+
   # Starship prompt
   programs.starship = {
     enable = true;
@@ -516,7 +536,14 @@ in
   programs.fd = {
     enable = true;
     hidden = true;
-    ignores = [ ".git/" ".direnv/" ".devenv/" "node_modules/" ".next/" "target/" ];
+    ignores = [
+      ".git/"
+      ".direnv/"
+      ".devenv/"
+      "node_modules/"
+      ".next/"
+      "target/"
+    ];
   };
 
   # Ripgrep (modern grep)
@@ -928,6 +955,7 @@ in
       # Search & research
       "TAVILY_API_KEY"
       "BRAVE_API_KEY"
+      "FIRECRAWL_API_KEY"
 
       # Dev tools & services
       "GITHUB_READ_ONLY_PAT"
@@ -943,31 +971,23 @@ in
       "FIREWORKS_API_KEY"
       "PARALLEL_API_KEY"
       "STITCH_API_KEY"
+
+      # Corporate HTTPS proxy
+      "PROXY_HOST"
+      "PROXY_PORT"
+      "PROXY_USER"
+      "PROXY_PASS"
     ] (_: { });
   };
 
   # Dotfiles
   home.file = {
     ".config/jj/config.toml".source = ./dotfiles/jj/config.toml;
-    ".config/zellij/config.kdl".text =
-      builtins.replaceStrings
-        [ "@THEME@" ]
-        [ theme.zellij ]
-        (builtins.readFile ./dotfiles/zellij/config.kdl);
+    ".config/zellij/config.kdl".text = builtins.replaceStrings [ "@THEME@" ] [ theme.zellij ] (
+      builtins.readFile ./dotfiles/zellij/config.kdl
+    );
     ".config/theme/current".text = theme.neovim;
     ".aider.conf.yml".source = ./dotfiles/aider.conf.yml;
-    ".local/bin/gwt" = {
-      source = ./dotfiles/bin/gwt;
-      executable = true;
-    };
-    ".local/bin/jwt" = {
-      source = ./dotfiles/bin/jwt;
-      executable = true;
-    };
-    ".local/bin/jjt" = {
-      source = ./dotfiles/bin/jjt;
-      executable = true;
-    };
     ".local/bin/workspace-up" = {
       source = ./dotfiles/bin/workspace-up;
       executable = true;
