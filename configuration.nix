@@ -13,8 +13,15 @@
   security.pam.services.sudo_local.touchIdAuth = true;
   security.pam.services.sudo_local.reattach = true;
 
-  # Zsh shell (adds to /etc/shells)
-  programs.zsh.enable = true;
+  # Zsh shell (adds to /etc/shells). Disable the module's own compinit/prompt
+  # init — home-manager already runs compinit at mkOrder 570 and we use
+  # starship. The duplicate /etc/zshrc compinit alone costs ~2000ms per shell.
+  programs.zsh = {
+    enable = true;
+    enableCompletion = false;
+    enableBashCompletion = false;
+    promptInit = "";
+  };
   environment.shells = [ pkgs.zsh ];
 
   # User configuration

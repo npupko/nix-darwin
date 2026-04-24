@@ -212,7 +212,7 @@ in
   programs.mise = {
     enable = true;
     # package = inputs.mise.packages.${pkgs.system}.default;
-    enableZshIntegration = true;
+    enableZshIntegration = false; # loaded via zinit turbo (see programs.zsh.initContent)
     globalConfig = {
       settings = {
         npm = {
@@ -265,6 +265,18 @@ in
     };
     syntaxHighlighting.enable = true;
 
+    # Register zinit as an HM zsh plugin. HM sources it at mkOrder 900, before
+    # user initContent (1200), so the turbo declarations below can call `zinit`.
+    # nixpkgs lays zinit.zsh at share/zinit/ (not <name>.plugin.zsh) so `file`
+    # must be set explicitly.
+    plugins = [
+      {
+        name = "zinit";
+        src = pkgs.zinit;
+        file = "share/zinit/zinit.zsh";
+      }
+    ];
+
     history = {
       size = 100000;
       save = 100000;
@@ -285,7 +297,51 @@ in
           fpath=($HOME/.cache/zsh/completions $fpath)
         '')
 
+        # Upstream `try init` emits `/usr/bin/env ruby '.../.try-wrapped'`, which
+        # resolves to macOS system ruby 2.6 and crashes on `Data.define`
+        # (Ruby 3.2+). Redefine the function to call the makeBinaryWrapper
+        # `try` binary directly so nix ruby is prefixed onto PATH.
+        # Track upstream fix: https://github.com/tobi/try/issues/60
+        # (also related: init_snippet hardcodes `/usr/bin/env ruby` in try.rb)
+        (lib.mkAfter ''
+          try() {
+            local out
+            out=$(${config.programs.try.package}/bin/try exec --path "${config.programs.try.path}" "$@" 2>/dev/tty)
+            if [ $? -eq 0 ]; then
+              eval "$out"
+            else
+              echo "$out"
+            fi
+          }
+        '')
+
         (''
+          # ---- zinit turbo: defer tool init hooks until after first prompt ----
+          # HM sources pkgs.zinit at order 900; this block runs at the default
+          # order 1200. Pre-seed ZINIT[BIN_DIR] so zinit doesn't self-install.
+          # ZINIT[HOME_DIR] stays on a writable path because turbo plugins (like
+          # zdharma-continuum/null) get cloned there on first run.
+          # ice flags:
+          #   wait'0'   fire immediately after first prompt paints (async)
+          #   lucid     suppress "Loaded ..." banner
+          #   as"null"  host-only, no plugin code to source
+          #   atload    run the eval AFTER the noop host loads (stable env)
+          typeset -gA ZINIT
+          ZINIT[HOME_DIR]="$HOME/.local/share/zinit"
+          ZINIT[BIN_DIR]="${pkgs.zinit}/share/zinit"
+
+          zinit ice wait'0' lucid as"null" atload'eval "$(${pkgs.zoxide}/bin/zoxide init zsh)"'
+          zinit light zdharma-continuum/null
+
+          zinit ice wait'0' lucid as"null" atload'eval "$(${pkgs.direnv}/bin/direnv hook zsh)"'
+          zinit light zdharma-continuum/null
+
+          zinit ice wait'0' lucid as"null" atload'eval "$(${pkgs.mise}/bin/mise activate zsh)"'
+          zinit light zdharma-continuum/null
+
+          zinit ice wait'0' lucid as"null" atload'eval "$(${pkgs.fzf}/bin/fzf --zsh)"'
+          zinit light zdharma-continuum/null
+
           # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
         # TRAPINT() {
         #   return $(( 128 + $1 ))
@@ -530,13 +586,13 @@ in
   # Zoxide (smart cd)
   programs.zoxide = {
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false; # loaded via zinit turbo
   };
 
   # FZF (fuzzy finder)
   programs.fzf = {
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false; # loaded via zinit turbo
     defaultCommand = "fd --type f --hidden --follow --exclude .git";
     defaultOptions = [
       "--height 40%"
@@ -903,6 +959,7 @@ in
   # Direnv with nix-direnv
   programs.direnv = {
     enable = true;
+    enableZshIntegration = false; # loaded via zinit turbo
     nix-direnv.enable = true;
     silent = true;
   };
