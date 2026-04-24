@@ -21,6 +21,13 @@
 }:
 let
   theme = themes.${themeName};
+
+  # Pre-generate starship zsh init at build time. Shell startup sources the
+  # store file directly — no subprocess fork per shell (~32ms saved). Cache
+  # invalidates automatically when pkgs.starship store path changes.
+  starshipInitZsh = pkgs.runCommand "starship-init.zsh" { } ''
+    ${lib.getExe pkgs.starship} init zsh > $out
+  '';
 in
 {
   imports = [
@@ -28,8 +35,12 @@ in
     inputs.try.homeModules.default
   ];
 
+  # try: module provides `package` and `path` options; we disable its eager
+  # `eval "$(try init …)"` injection (saves ~75ms) because the custom `try()`
+  # function below calls the binary directly. Options still resolve since
+  # only `config` is gated by `enable`.
   programs.try = {
-    enable = true;
+    enable = false;
     path = "$HOME/Projects/tries";
   };
 
@@ -256,6 +267,20 @@ in
   programs.zsh = {
     enable = true;
     enableCompletion = true;
+
+    # Run full `compinit` (security audit + dump rebuild) once per day;
+    # skip audit with `-C` otherwise. Audit is the expensive part (~50ms);
+    # `-C` drops it to ~10ms. Safe on nix-managed fpath (immutable store paths).
+    # glob qualifier `(#qN.mh+24)` = regular file, mtime older than 24h, nullglob.
+    completionInit = ''
+      autoload -U compinit
+      if [[ -n $HOME/.zcompdump(#qN.mh+24) ]]; then
+        compinit
+      else
+        compinit -C
+      fi
+    '';
+
     autosuggestion = {
       enable = true;
       strategy = [
@@ -316,6 +341,11 @@ in
         '')
 
         (''
+          # Starship prompt: source pre-generated init (saves fork+parse cost).
+          if [[ $TERM != "dumb" ]]; then
+            source ${starshipInitZsh}
+          fi
+
           # ---- zinit turbo: defer tool init hooks until after first prompt ----
           # HM sources pkgs.zinit at order 900; this block runs at the default
           # order 1200. Pre-seed ZINIT[BIN_DIR] so zinit doesn't self-install.
@@ -551,10 +581,11 @@ in
     '';
   };
 
-  # Starship prompt
+  # Starship prompt. enableZshIntegration = false: we source the pre-generated
+  # init file (see `starshipInitZsh` in the let-binding) from initContent.
   programs.starship = {
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
     settings = {
       command_timeout = 200;
       add_newline = false;
