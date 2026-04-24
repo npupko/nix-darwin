@@ -276,8 +276,16 @@ in
           fi
         '';
       in
-      ''
-        # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
+      lib.mkMerge [
+        # Prepend completion cache dir to fpath BEFORE compinit (HM order 570),
+        # so compinit autoloads _codex lazily. File is refreshed in activation
+        # script, not at shell startup.
+        (lib.mkOrder 560 ''
+          fpath=($HOME/.cache/zsh/completions $fpath)
+        '')
+
+        (''
+          # Handle SIGINT properly to prevent Starship "Exiting because of interrupt signal" spam
         # TRAPINT() {
         #   return $(( 128 + $1 ))
         # }
@@ -460,13 +468,23 @@ in
           git push origin "$(git rev-parse --abbrev-ref HEAD)" --force-with-lease -u
         }
 
-        # OpenAI Codex shell completion (via mise shim, available before activate hooks)
-        [[ -x "$HOME/.local/share/mise/shims/codex" ]] && eval "$("$HOME/.local/share/mise/shims/codex" completion zsh)"
-
         # Load API keys from sops-nix secrets
       ''
-      + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets);
+        + lib.concatMapStrings loadSecret (lib.attrNames config.sops.secrets))
+      ];
   };
+
+  # Regenerate codex zsh completion only when mise shim changes.
+  # File lands in ~/.cache/zsh/completions and is picked up by compinit via
+  # fpath (see programs.zsh.initContent mkOrder 560 above).
+  home.activation.codexCompletion = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    shim="$HOME/.local/share/mise/shims/codex"
+    out="$HOME/.cache/zsh/completions/_codex"
+    if [ -x "$shim" ] && { [ ! -f "$out" ] || [ "$shim" -nt "$out" ]; }; then
+      mkdir -p "$(dirname "$out")"
+      "$shim" completion zsh > "$out"
+    fi
+  '';
 
   # Bash shell (minimal — zsh is primary)
   programs.bash = {
