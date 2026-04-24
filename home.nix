@@ -23,7 +23,15 @@ let
   theme = themes.${themeName};
 in
 {
-  imports = [ inputs.sops-nix.homeManagerModules.sops ];
+  imports = [
+    inputs.sops-nix.homeManagerModules.sops
+    inputs.try.homeModules.default
+  ];
+
+  programs.try = {
+    enable = true;
+    path = "$HOME/Projects/tries";
+  };
 
   home.stateVersion = "26.05";
 
@@ -282,9 +290,6 @@ in
         # TRAPINT() {
         #   return $(( 128 + $1 ))
         # }
-
-        # Initialize try.rb for project shortcuts
-        eval "$($HOME/.local/try.rb init $HOME/Projects/tries)"
 
         # Claude with alternative model providers
         claude-deepseek() {

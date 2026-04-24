@@ -56,5 +56,3 @@ nix flake update     # Update all inputs
 
 - `tdl` / `tdlm` — tmux dev layouts (editor + AI + terminal panes)
 - `tsl` — tmux swarm layout (N panes running same command)
-- `gwt` — git worktree helper
-- `jjt` / `jwt` — jujutsu workspace helpers

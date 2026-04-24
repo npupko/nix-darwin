@@ -29,6 +29,11 @@
       url = "github:jdx/mise";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    try = {
+      url = "github:tobi/try";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
