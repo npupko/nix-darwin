@@ -2,10 +2,13 @@
   description = "nix-darwin configuration with Determinate Nix";
 
   inputs = {
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
+    # nixos-unstable: rolling unstable channel. Hydra builds the full job set,
+    # so cache hit rate is high. Bump to nixpkgs-26.05-darwin after May 2026
+    # release if/when stability matters more than freshness.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     nix-darwin = {
-      url = "https://flakehub.com/f/nix-darwin/nix-darwin/0.1";
+      url = "github:nix-darwin/nix-darwin/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -18,15 +21,6 @@
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nixpkgs-unstable = {
-      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    };
-
-    mise = {
-      url = "github:jdx/mise";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -55,27 +49,42 @@
           # Determinate Nix module
           inputs.determinate.darwinModules.default
 
-          # Nix configuration for Determinate
+          # Custom Determinate Nix settings written to /etc/nix/nix.custom.conf.
+          # Determinate's darwin module owns nix configuration; do NOT also set
+          # nix.enable = false (redundant since 3.15.2). build-time-fetch-tree
+          # and parallel-eval are default in Determinate 3.13+.
           {
-            # Let Determinate Nix handle Nix configuration
-            nix.enable = false;
-
-            # Custom Determinate Nix settings written to /etc/nix/nix.custom.conf
             determinateNix.customSettings = {
-              # Enables parallel evaluation (set to 1 to disable)
-              # eval-cores = 0;
-              extra-experimental-features = [
-                "build-time-fetch-tree" # Enables build-time flake inputs
-                "parallel-eval" # Enables parallel evaluation
+              extra-substituters = [
+                "https://nix-community.cachix.org"
+                "https://devenv.cachix.org"
               ];
-              extra-substituters = "https://devenv.cachix.org";
-              extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
+              extra-trusted-public-keys = [
+                "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+                "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+              ];
               trusted-users = [
                 "root"
                 username
               ];
               # Allow mprocs to use pbcopy on macOS (for devenv)
               extra-allowed-impure-host-deps = "/usr/bin/pbcopy";
+
+              # Build parallelism — tuned for M1 Max, 10 cores, 32GB RAM.
+              # max-jobs=4 fits 4 concurrent heavy builds (Rust/LLVM/Haskell
+              # each spike to ~8GB). cores=0 lets each job use all 10 cores;
+              # the kernel time-shares fairly, no contention concern.
+              max-jobs = 4;
+              cores = 0;
+              auto-optimise-store = true;
+
+              # Network — defaults (16/25) are conservative. Faster downloads
+              # from cache.nixos.org/FlakeHub when bandwidth permits.
+              max-substitution-jobs = 32;
+              http-connections = 50;
+
+              # Don't bail on first failed build — surface all errors per run.
+              keep-going = true;
             };
           }
 
@@ -91,10 +100,6 @@
               backupFileExtension = "backup";
               extraSpecialArgs = {
                 inherit inputs username themes themeName;
-                pkgs-unstable = import inputs.nixpkgs-unstable {
-                  inherit system;
-                  config.allowUnfree = true;
-                };
               };
               users.${username} = import ./home.nix;
             };

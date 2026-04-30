@@ -1,5 +1,6 @@
 {
   pkgs,
+  inputs,
   username,
   ...
 }:
@@ -8,6 +9,13 @@
   system.primaryUser = username;
   nixpkgs.hostPlatform = "aarch64-darwin";
   nixpkgs.config.allowUnfree = true;
+
+  nixpkgs.overlays = import ./overlays.nix { inherit inputs; };
+
+  # GC: Determinate handles automatically via disk-pressure heuristics
+  # (target 30GB free, urgent <5%). Override via /etc/determinate/config.json
+  # `garbageCollector.strategy`. Manual cleanup via `ngc` alias (home.nix).
+  # Source: https://manual.determinate.systems/package-management/garbage-collection.html
 
   # Enable Touch ID for sudo (including inside tmux)
   security.pam.services.sudo_local.touchIdAuth = true;

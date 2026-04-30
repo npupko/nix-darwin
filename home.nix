@@ -1,8 +1,7 @@
 # =============================================================================
 # PACKAGE MANAGEMENT STRATEGY
 # =============================================================================
-# Nix (home.packages):  CLI tools, system utilities, fonts, stable software
-# Nix (pkgs-unstable):  Fast-moving tools where nixpkgs-stable is too old
+# Nix (home.packages):  CLI tools, system utilities, fonts (nixpkgs unstable)
 # Homebrew brews:       macOS-specific, not in nixpkgs, or need latest versions
 # Homebrew casks:       GUI applications
 # Mise:                 Language runtimes + npm/node CLI tools (always latest)
@@ -11,7 +10,6 @@
 {
   config,
   pkgs,
-  pkgs-unstable,
   lib,
   inputs,
   username,
@@ -57,8 +55,8 @@ in
     uv
 
     # Editors
-    pkgs-unstable.helix
-    pkgs-unstable.neovim
+    pkgs.helix
+    pkgs.neovim
     # markdown-oxide
     marksman
 
