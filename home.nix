@@ -31,6 +31,7 @@ in
   imports = [
     inputs.sops-nix.homeManagerModules.sops
     inputs.try.homeModules.default
+    ./nvim-lsp.nix
   ];
 
   # try: module provides `package` and `path` options; we disable its eager
