@@ -7,7 +7,7 @@
     lua-language-server              # lua_ls
     vscode-langservers-extracted     # jsonls + html + cssls + eslint
     taplo                            # toml
-    nodePackages.svelte-language-server  # svelte
+    svelte-language-server           # svelte
     gopls                            # go
     # marksman (markdown) is in home.nix Editors group — leave there
   ];
