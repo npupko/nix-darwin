@@ -156,6 +156,9 @@ in
     # API base URLs (not secrets)
     REQUESTY_BASE_URL = "https://router.requesty.ai/v1";
 
+    # Opt out of Determinate Nix telemetry (stops .cache/nix/sentry/ in CWD)
+    DETSYS_IDS_TELEMETRY = "disabled";
+
     # XDG base directories — macOS doesn't set these by default, but most CLI
     # tools (sops, gh, kubectl, jj, nvim, starship, ...) either honor XDG when
     # set or already default to ~/.config. Declare them so every CLI resolves
