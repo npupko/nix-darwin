@@ -54,6 +54,7 @@ in
   home.packages = with pkgs; [
     # Core Dev Tools
     uv
+    tilt
 
     # Editors
     pkgs.helix
@@ -66,6 +67,8 @@ in
     opentofu
     awscli2
     kubectl
+    google-cloud-sdk
+    google-cloud-sql-proxy
     ngrok
     qmk
 
@@ -247,7 +250,7 @@ in
         "npm:@qwen-code/qwen-code" = "latest";
         "npm:opencode-ai" = "latest";
         "npm:@musistudio/claude-code-router" = "latest";
-        "npm:@mariozechner/pi-coding-agent" = "latest";
+        "npm:@earendil-works/pi-coding-agent" = "latest";
         "npm:@playwright/cli" = "latest";
         "cargo:rtk-ai/rtk" = "latest";
 
@@ -458,15 +461,17 @@ in
 
         claude-minimax() {
           ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
-          ANTHROPIC_MODEL=MiniMax-M2 \
-          ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2 \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2 \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2 \
-          ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2 \
+          ANTHROPIC_MODEL=MiniMax-M2.7 \
+          ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2.7 \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2.7 \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2.7 \
           API_TIMEOUT_MS=3000000 \
           CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-          claude
+          CLAUDE_CODE_TELEMETRY=0 \
+          claude --dangerously-skip-permissions
         }
 
         # Edit fuzzy-found file
@@ -1006,25 +1011,21 @@ in
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = {
+    settings = {
       "*" = {
-        extraOptions = {
-          AddKeysToAgent = "yes";
-          UseKeychain = "yes";
-          SetEnv = "TERM=xterm-256color";
-        };
-        controlMaster = "auto";
-        controlPath = "~/.ssh/control-%C";
-        controlPersist = "10m";
+        AddKeysToAgent = "yes";
+        UseKeychain = "yes";
+        SetEnv = { TERM = "xterm-256color"; };
+        ControlMaster = "auto";
+        ControlPath = "~/.ssh/control-%C";
+        ControlPersist = "10m";
       };
       "bitbucket-fleetrover" = {
-        hostname = "bitbucket.org";
-        user = "git";
-        identityFile = "~/.ssh/id_ed25519_fleetrover";
-        identitiesOnly = true;
-        extraOptions = {
-          WarnWeakCrypto = "no";
-        };
+        HostName = "bitbucket.org";
+        User = "git";
+        IdentityFile = "~/.ssh/id_ed25519_fleetrover";
+        IdentitiesOnly = true;
+        WarnWeakCrypto = "no";
       };
     };
   };
@@ -1079,6 +1080,8 @@ in
       "SENTRY_API_KEY"
       "HF_TOKEN"
       "HARVEST_TOKEN"
+      "TRELLO_API_KEY"
+      "TRELLO_API_TOKEN"
 
       # Other APIs
       "GOOGLE_PLACES_API_KEY"
