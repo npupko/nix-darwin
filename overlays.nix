@@ -3,12 +3,30 @@
 #
 # Imported by configuration.nix as
 #   nixpkgs.overlays = import ./overlays.nix { inherit inputs; };
-# `inputs` is unused today but keeping the parameter avoids churn when an
-# overlay later needs a flake input (custom package from another flake, etc.).
 
-{ inputs ? null }:
+{ inputs }:
 
 [
+  # bitwarden-desktop: source-built Electron on aarch64-darwin currently
+  # breaks via compiler-rt-libc-18.1.8 against libcxx-21 in apple-sdk-26
+  # (std::__countl_zero gone → FuzzerFork.cpp fails to compile). Serve from
+  # the pinned `nixpkgs-bitwarden` flake input (last known-good rev, see the
+  # comment on that input in flake.nix for the full diagnosis).
+  #
+  # Removal: delete this overlay block AND the `nixpkgs-bitwarden` input in
+  # flake.nix once unstable's darwin stdenv chain is healthy again, then run
+  # `nix flake lock` to drop the pin from flake.lock.
+  #
+  # Tracking:
+  #   https://github.com/NixOS/nixpkgs/issues/500399  (electron-unwrapped)
+  #   https://github.com/NixOS/nixpkgs/issues/348920  (bitwarden-desktop)
+  (final: prev: {
+    bitwarden-desktop = (import inputs.nixpkgs-bitwarden {
+      system = prev.stdenv.hostPlatform.system;
+      config.allowUnfree = true;
+    }).bitwarden-desktop;
+  })
+
   # zsh sigsuspend probe fails under autoconf 2.73 / clang gnu23 on macOS
   # Tahoe → falls back to racy pause() path → command substitutions hang
   # forever (visible as "tmux pane stuck with no prompt").

@@ -234,6 +234,9 @@ in
         npm = {
           package_manager = "bun";
         };
+        trusted_config_paths = [
+          "/Users/${username}/Projects"
+        ];
       };
       tools = {
         rust = "latest";
@@ -746,7 +749,12 @@ in
       user = {
         name = "Nick Pupko";
         email = "work.pupko@gmail.com";
-        signingkey = "B6037B82A01D008B264C633B7E3F4D625B0E9E31";
+        # Signing subkey of primary B16BCB35D0D578EBA7F30282D8F94441802E8AE2.
+        # Primary is Certify-only and lives in 1Password (offline-primary
+        # pattern); only the signing subkey's secret is on this laptop.
+        # Trailing `!` forces gpg to use exactly this subkey (no fallback).
+        # Renews 2027-05-25; pull primary from 1Password to mint a new subkey.
+        signingkey = "81A700F2DD12DA8D!";
       };
       commit = {
         gpgsign = true;
@@ -1073,6 +1081,8 @@ in
       "TAVILY_API_KEY"
       "BRAVE_API_KEY"
       "FIRECRAWL_API_KEY"
+      "VOYAGE_API_KEY"
+      "COHERE_API_KEY"
 
       # Dev tools & services
       "GITHUB_READ_ONLY_PAT"

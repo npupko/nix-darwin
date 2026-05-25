@@ -7,6 +7,24 @@
     # release if/when stability matters more than freshness.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # Pinned older nixpkgs for bitwarden-desktop only. On unstable, source-built
+    # Electron on aarch64-darwin currently fails: compiler-rt-libc-18.1.8 source
+    # is compiled against libcxx-21.1.6+apple-sdk-26.4 headers, where
+    # std::__countl_zero changed → 11 errors in FuzzerFork.cpp. Rev daf6dc4
+    # (25.05 channel, 2025-10-27) is the last lock state where this machine
+    # built the package locally; the overlay in overlays.nix swaps just
+    # bitwarden-desktop to come from here.
+    #
+    # Removal: when both upstream issues are fixed on nixos-unstable and a
+    # plain `nix build .#darwinConfigurations.m1.config.system.build.toplevel`
+    # no longer pulls compiler-rt-libc into the closure, delete this input
+    # AND the matching overlay block in overlays.nix.
+    #
+    # Tracking:
+    #   https://github.com/NixOS/nixpkgs/issues/500399  (electron-unwrapped)
+    #   https://github.com/NixOS/nixpkgs/issues/348920  (bitwarden-desktop)
+    nixpkgs-bitwarden.url = "github:NixOS/nixpkgs/daf6dc47aa4b44791372d6139ab7b25269184d55";
+
     nix-darwin = {
       url = "github:nix-darwin/nix-darwin/master";
       inputs.nixpkgs.follows = "nixpkgs";
