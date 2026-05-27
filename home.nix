@@ -569,6 +569,21 @@ in
       ];
   };
 
+  # SSH control socket directory: 0700 perms (sshd refuses sockets in
+  # group/world-writable dirs), and sweep any sockets whose master process is
+  # gone so the "ControlSocket … already exists, disabling multiplexing"
+  # warning self-heals on each rebuild. Also migrate sockets from the old
+  # ~/.ssh/control-* layout.
+  home.activation.sshSockets = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    mkdir -p "$HOME/.ssh/sockets"
+    chmod 700 "$HOME/.ssh/sockets"
+    rm -f "$HOME"/.ssh/control-*
+    for sock in "$HOME"/.ssh/sockets/*; do
+      [ -S "$sock" ] || continue
+      /usr/sbin/lsof -- "$sock" >/dev/null 2>&1 || rm -f "$sock"
+    done
+  '';
+
   # Regenerate codex zsh completion only when mise shim changes.
   # File lands in ~/.cache/zsh/completions and is picked up by compinit via
   # fpath (see programs.zsh.initContent mkOrder 560 above).
@@ -1025,7 +1040,11 @@ in
         UseKeychain = "yes";
         SetEnv = { TERM = "xterm-256color"; };
         ControlMaster = "auto";
-        ControlPath = "~/.ssh/control-%C";
+        # %C = SHA1(%l%h%p%r). Subdir (0700, see home.activation.sshSockets)
+        # keeps ~/.ssh/ uncluttered; ~/.ssh/ (not /tmp) because anyone who can
+        # read/write a live control socket can hijack the session without
+        # re-auth, so the path must not be publicly accessible.
+        ControlPath = "~/.ssh/sockets/%C";
         ControlPersist = "10m";
       };
       "bitbucket-fleetrover" = {
