@@ -140,6 +140,11 @@
   # Homebrew (managed by nix-darwin)
   homebrew = {
     enable = true;
+    # Inject `eval "$(/opt/homebrew/bin/brew shellenv zsh)"` into /etc/zshrc so
+    # brew + its bins land on PATH (also sets HOMEBREW_PREFIX, MANPATH, INFOPATH).
+    # Restores the line that lived in a hand-written ~/.zprofile until home-manager
+    # took over that file (backed up to ~/.zprofile.backup on 2026-03-18).
+    enableZshIntegration = true;
     onActivation = {
       autoUpdate = true;
       upgrade = true;
