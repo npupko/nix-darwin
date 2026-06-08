@@ -24,15 +24,29 @@
   # Zsh shell (adds to /etc/shells). Disable the module's own compinit/prompt
   # init — home-manager already runs compinit at mkOrder 570 and we use
   # starship. The duplicate /etc/zshrc compinit alone costs ~2000ms per shell.
+  # Kept as a fully-working fallback now that fish is the daily driver.
   programs.zsh = {
     enable = true;
     enableCompletion = false;
     enableBashCompletion = false;
     promptInit = "";
   };
+
+  # Fish shell, system level. Installs fish to /run/current-system/sw/bin and
+  # wires nixpkgs vendor completions/functions (vendor_completions.d etc.) onto
+  # fish's search path via pathsToLink. The per-user fish config lives in
+  # home.nix (programs.fish). fish is NOT the login shell — zsh is, and it
+  # execs fish for interactive sessions (home-manager#6568: fish-as-login-shell
+  # breaks HM env/module init on macOS). So fish is intentionally NOT in
+  # /etc/shells.
+  programs.fish.enable = true;
+
+  # zsh is the login shell (registered in /etc/shells so `chsh` accepts the
+  # nix-managed zsh).
   environment.shells = [ pkgs.zsh ];
 
-  # User configuration
+  # User configuration. NOTE: `shell` is a no-op on macOS (nix-darwin can't set
+  # the login shell here); the real switch is `chsh`. zsh is the login shell.
   users.users.${username} = {
     name = username;
     home = "/Users/${username}";

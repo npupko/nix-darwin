@@ -229,7 +229,8 @@ in
   programs.mise = {
     enable = true;
     # package = inputs.mise.packages.${pkgs.system}.default;
-    enableZshIntegration = false; # loaded via zinit turbo (see programs.zsh.initContent)
+    enableZshIntegration = false; # zsh: loaded via zinit turbo (see programs.zsh.initContent)
+    enableFishIntegration = true; # fish: native eager `mise activate fish`
     globalConfig = {
       settings = {
         npm = {
@@ -324,6 +325,26 @@ in
 
     initContent =
       lib.mkMerge [
+        # Hand off to fish as the INTERACTIVE shell while zsh stays the LOGIN
+        # shell. This is the recommended macOS pattern: making fish the login
+        # shell breaks home-manager env/module init on macOS (home-manager#6568)
+        # and forces a fragile path_helper PATH workaround. Keeping zsh at the
+        # login boundary means the POSIX + nix PATH bootstrap happens in zsh;
+        # fish is exec'd NON-login and inherits a correct environment (so no
+        # fish-side path_helper fix is needed). Runs first (mkBefore) so the
+        # handoff skips zsh's compinit/turbo/prompt setup.
+        #   - interactive-only guard (scripts never hand off)
+        #   - skip if our parent is already fish, so `zsh` from within fish
+        #     drops to a real zsh fallback (no exec loop)
+        #   - macOS BSD `ps -o comm=` returns the full path → `*fish` glob
+        #     (GNU `ps --format=comm` / procps does not work on Darwin)
+        (lib.mkBefore ''
+          [[ $- == *i* ]] || return
+          if [[ $(ps -o comm= -p $PPID) != *fish ]]; then
+            exec ${pkgs.fish}/bin/fish
+          fi
+        '')
+
         # Prepend completion cache dir to fpath BEFORE compinit (HM order 570),
         # so compinit autoloads _codex lazily. File is refreshed in activation
         # script, not at shell startup.
@@ -570,6 +591,285 @@ in
       ];
   };
 
+  # ===========================================================================
+  # Fish — primary interactive shell (zsh above is kept as a working fallback).
+  # System-level fish (configuration.nix) installs the binary and wires nixpkgs
+  # vendor completions; this block is the per-user config. The default login
+  # shell is switched with a one-time `chsh -s /run/current-system/sw/bin/fish`
+  # (nix-darwin cannot set the macOS login shell declaratively).
+  #
+  # No zinit-style turbo here: fish has no native deferral and doesn't need it
+  # (bare fish ~10ms; all hooks eager ~100ms — vs zsh's ~2000ms compinit that
+  # turbo targeted). Integrations load eagerly via each program's
+  # enableFishIntegration (default true once fish is enabled), except starship
+  # which we pre-generate (see starshipInitFish) and source directly.
+  # ===========================================================================
+  programs.fish = {
+    enable = true;
+
+    # Skip man-page-derived completion generation for every home.packages entry
+    # (pulls in python3 and forces programs.man.generateCaches → slow rebuilds).
+    # fish built-ins + nixpkgs vendor completions already cover our tools.
+    generateCompletions = false;
+
+    # Git shortcuts as abbreviations: expand inline to the real command on the
+    # command line (history stores the expansion). The other 23 aliases carry
+    # over from home.shellAliases automatically (home-manager mirrors them).
+    shellAbbrs = {
+      g = "git";
+      gcm = "git commit -m";
+      gcam = "git commit -a -m";
+      gcad = "git commit -a --amend";
+    };
+
+    # Drop those 4 from fish's auto-populated alias set so they don't duplicate
+    # the abbreviations above. zsh keeps them as aliases (home.shellAliases is
+    # untouched). home-manager assigns programs.fish.shellAliases directly, so
+    # mkForce is required to override.
+    shellAliases = lib.mkForce (
+      removeAttrs config.home.shellAliases [
+        "g"
+        "gcm"
+        "gcam"
+        "gcad"
+      ]
+    );
+
+    # No loginShellInit: fish is launched NON-login from zsh (see programs.zsh
+    # initContent), so macOS path_helper (__fish_macos_set_env) never runs and
+    # fish inherits zsh's already-correct nix PATH — no PATH workaround needed.
+
+    # Runs inside `status is-interactive` (home-manager wraps it).
+    interactiveShellInit = ''
+      # Disable the default "Welcome to fish…" greeting. home-manager has no
+      # dedicated option; the documented way is to set the variable empty (the
+      # default fish_greeting function does `test -n "$fish_greeting"; and echo`,
+      # so an empty value prints nothing — verified, no leftover blank line).
+      set -g fish_greeting
+
+      # Load API keys from sops-nix (fish-syntax template — sourced natively).
+      test -f "${config.sops.templates."api-keys.fish".path}"; and source "${config.sops.templates."api-keys.fish".path}"
+    '';
+
+    # Custom functions (autoloaded lazily from ~/.config/fish/functions/).
+    # Each body is fish_indent-validated at build time, so a syntax error here
+    # fails `darwin-rebuild` rather than producing a broken shell.
+    functions = {
+      # ---- Claude with alternative model providers ----
+      # fish ≥3.2 supports the `VAR=val cmd` prefix; fish is 4.7.1 here.
+      claude-deepseek = ''
+        ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
+        ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
+        ANTHROPIC_MODEL=deepseek-chat \
+        ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner \
+        claude
+      '';
+
+      claude-xai = ''
+        ANTHROPIC_BASE_URL=https://api.x.ai/ \
+        ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
+        ANTHROPIC_MODEL=grok-code-fast-1 \
+        ANTHROPIC_SMALL_FAST_MODEL=grok-code-fast-1 \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=grok-code-fast-1 \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=grok-4 \
+        claude
+      '';
+
+      claude-zai = ''
+        ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
+        ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-4.7 \
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=GLM-4.5-Air \
+        claude
+      '';
+
+      claude-qwen = ''
+        ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
+        ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
+        ANTHROPIC_MODEL=Qwen3-Coder-Plus \
+        ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max \
+        claude
+      '';
+
+      claude-fireworks = ''
+        ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
+        ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
+        ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+        ANTHROPIC_SMALL_FAST_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
+        claude
+      '';
+
+      claude-kimi = ''
+        ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic \
+        ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY \
+        ANTHROPIC_MODEL=kimi-k2-turbo-preview \
+        ANTHROPIC_SMALL_FAST_MODEL=kimi-k2-turbo-preview \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2-turbo-preview \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-k2-turbo-preview \
+        claude
+      '';
+
+      claude-router = ''
+        ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
+        claude
+      '';
+
+      claude-minimax = ''
+        ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+        ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
+        ANTHROPIC_MODEL=MiniMax-M2.7 \
+        ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2.7 \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2.7 \
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2.7 \
+        API_TIMEOUT_MS=3000000 \
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+        CLAUDE_CODE_TELEMETRY=0 \
+        claude --dangerously-skip-permissions
+      '';
+
+      # Claude through the corporate HTTPS proxy. Here-string `<<<` → pipe;
+      # keep jq @uri (RFC-3986) for credential encoding rather than fish's
+      # string escape --style=url (char set not byte-equivalent).
+      cproxy = ''
+        set -l u (printf %s "$PROXY_USER" | jq -sRr @uri)
+        set -l p (printf %s "$PROXY_PASS" | jq -sRr @uri)
+        set -l url "https://$u:$p@$PROXY_HOST:$PROXY_PORT"
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+        HTTPS_PROXY="$url" \
+        NO_PROXY="localhost,127.0.0.1,::1" \
+        claude --dangerously-skip-permissions $argv
+      '';
+
+      # Edit fuzzy-found file (ff alias carries over from home.shellAliases).
+      eff = ''$EDITOR (ff)'';
+
+      # Git push current branch with force-with-lease.
+      gpb = ''git push origin (git rev-parse --abbrev-ref HEAD) --force-with-lease -u'';
+
+      # Omarchy tmux dev layouts.
+      # tdl: 3-pane layout — editor (left), AI (right 30%), terminal (bottom 15%).
+      # Usage: tdl <cx|claude|codex> [<second_ai>]
+      tdl = ''
+        if test -z "$argv[1]"
+            echo "Usage: tdl <cx|claude|codex|other_ai> [<second_ai>]"
+            return 1
+        end
+        if not set -q TMUX
+            echo "You must start tmux to use tdl."
+            return 1
+        end
+
+        set -l current_dir $PWD
+        set -l ai $argv[1]
+        set -l ai2 $argv[2]
+
+        set -l editor_pane $TMUX_PANE
+        tmux rename-window -t "$editor_pane" (basename "$current_dir")
+        tmux split-window -v -p 15 -t "$editor_pane" -c "$current_dir"
+        set -l ai_pane (tmux split-window -h -p 30 -t "$editor_pane" -c "$current_dir" -P -F '#{pane_id}')
+        if test -n "$ai2"
+            set -l ai2_pane (tmux split-window -v -t "$ai_pane" -c "$current_dir" -P -F '#{pane_id}')
+            tmux send-keys -t "$ai2_pane" "$ai2" C-m
+        end
+        tmux send-keys -t "$ai_pane" "$ai" C-m
+        tmux send-keys -t "$editor_pane" "$EDITOR ." C-m
+        tmux select-pane -t "$editor_pane"
+      '';
+
+      # tdlm: one tdl window per subdirectory (monorepo mode).
+      # Usage: tdlm <cx|claude|codex> [<second_ai>]
+      tdlm = ''
+        if test -z "$argv[1]"
+            echo "Usage: tdlm <cx|claude|codex|other_ai> [<second_ai>]"
+            return 1
+        end
+        if not set -q TMUX
+            echo "You must start tmux to use tdlm."
+            return 1
+        end
+
+        set -l ai $argv[1]
+        set -l ai2 $argv[2]
+        set -l base_dir $PWD
+        set -l first true
+
+        tmux rename-session (basename "$base_dir" | tr '.:' '--')
+
+        for dir in $base_dir/*/
+            test -d "$dir"; or continue
+            set -l dirpath (string trim --right --chars=/ "$dir")
+            if test "$first" = true
+                tmux send-keys -t "$TMUX_PANE" "cd '$dirpath' && tdl $ai $ai2" C-m
+                set first false
+            else
+                set -l pane_id (tmux new-window -c "$dirpath" -P -F '#{pane_id}')
+                tmux send-keys -t "$pane_id" "tdl $ai $ai2" C-m
+            end
+        end
+      '';
+
+      # tsl: swarm layout — N panes tiled, all running the same command.
+      # Usage: tsl <pane_count> <command>
+      tsl = ''
+        if test -z "$argv[1]" -o -z "$argv[2]"
+            echo "Usage: tsl <pane_count> <command>"
+            return 1
+        end
+        if not set -q TMUX
+            echo "You must start tmux to use tsl."
+            return 1
+        end
+
+        set -l count $argv[1]
+        set -l cmd $argv[2]
+        set -l current_dir $PWD
+        set -l panes
+
+        tmux rename-window -t "$TMUX_PANE" (basename "$current_dir")
+        set -a panes $TMUX_PANE
+        while test (count $panes) -lt $count
+            set -l split_target $panes[-1]
+            set -l new_pane (tmux split-window -h -t "$split_target" -c "$current_dir" -P -F '#{pane_id}')
+            set -a panes $new_pane
+            tmux select-layout -t $panes[1] tiled
+        end
+        for pane in $panes
+            tmux send-keys -t "$pane" "$cmd" C-m
+        end
+        tmux select-pane -t $panes[1]
+      '';
+
+      # try: call the makeBinaryWrapper binary directly so nix ruby is used (not
+      # macOS system ruby 2.6, which crashes on Data.define); `try init` instead
+      # hardcodes `/usr/bin/env ruby`. Otherwise this is exactly what `try init`
+      # emits for fish. The `| string collect` + `$pipestatus[1]` are
+      # load-bearing: `try exec` prints a MULTI-LINE `mkdir -p …` + `cd …` script
+      # when creating a new dir, so its output must stay a SINGLE string. A bare
+      # `(...)` capture splits on newlines and `eval` then space-joins the parts
+      # into `mkdir -p … cd …` — which makes a junk `cd/` dir and never cd's (the
+      # "new folders don't work" bug). `string collect` keeps it one string;
+      # pipestatus[1] is try's exit (plain $status would be string collect's).
+      try = ''
+        set -l out (${config.programs.try.package}/bin/try exec --path "${config.programs.try.path}" $argv 2>/dev/tty | string collect)
+        if test $pipestatus[1] -eq 0
+            eval $out
+        else
+            echo $out
+        end
+      '';
+    };
+  };
+
   # SSH control socket directory: 0700 perms (sshd refuses sockets in
   # group/world-writable dirs), and sweep any sockets whose master process is
   # gone so the "ControlSocket … already exists, disabling multiplexing"
@@ -597,6 +897,17 @@ in
     fi
   '';
 
+  # Same for fish — lands in ~/.config/fish/completions/, which fish autoloads.
+  # Pass `fish` explicitly (codex has defaulted to bash without it: codex#3009).
+  home.activation.codexCompletionFish = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    shim="$HOME/.local/share/mise/shims/codex"
+    out="$HOME/.config/fish/completions/codex.fish"
+    if [ -x "$shim" ] && { [ ! -f "$out" ] || [ "$shim" -nt "$out" ]; }; then
+      mkdir -p "$(dirname "$out")"
+      "$shim" completion fish > "$out"
+    fi
+  '';
+
   # Bash shell (minimal — zsh is primary)
   programs.bash = {
     enable = true;
@@ -607,11 +918,15 @@ in
     '';
   };
 
-  # Starship prompt. enableZshIntegration = false: we source the pre-generated
-  # init file (see `starshipInitZsh` in the let-binding) from initContent.
+  # Starship prompt. zsh integration disabled — we source the pre-generated init
+  # file (starshipInitZsh) directly to avoid the per-shell `starship init` fork.
+  # fish uses the official `starship init fish | source` integration: upstream
+  # keeps the two-stage `--print-full-init | psub` init (starship#2637, still
+  # open), so it forks starship twice per shell (~15-30ms) — acceptable here.
   programs.starship = {
     enable = true;
     enableZshIntegration = false;
+    enableFishIntegration = true;
     settings = {
       command_timeout = 200;
       add_newline = false;
@@ -643,13 +958,15 @@ in
   # Zoxide (smart cd)
   programs.zoxide = {
     enable = true;
-    enableZshIntegration = false; # loaded via zinit turbo
+    enableZshIntegration = false; # zsh: loaded via zinit turbo
+    enableFishIntegration = true; # fish: native eager init (--on-variable PWD)
   };
 
   # FZF (fuzzy finder)
   programs.fzf = {
     enable = true;
-    enableZshIntegration = false; # loaded via zinit turbo
+    enableZshIntegration = false; # zsh: loaded via zinit turbo
+    enableFishIntegration = true; # fish: built-in `fzf --fish` (CTRL-T/R, ALT-C)
     defaultCommand = "fd --type f --hidden --follow --exclude .git";
     defaultOptions = [
       "--height 40%"
@@ -854,6 +1171,7 @@ in
     enable = true;
     package = null;
     enableZshIntegration = true;
+    enableFishIntegration = true;
     installBatSyntax = false;
     settings = {
       font-size = 13;
@@ -994,6 +1312,8 @@ in
     #     extraConfig = "set -g @tmux-gruvbox 'dark'";
     #   }
     # ];
+    # zsh is the login shell; its initContent execs fish. tmux panes therefore
+    # launch zsh (which hands off to fish), keeping one uniform path to fish.
     shell = "${pkgs.zsh}/bin/zsh";
     extraConfig = builtins.readFile ./dotfiles/.tmux.conf + ''
 
@@ -1021,7 +1341,8 @@ in
   # Direnv with nix-direnv
   programs.direnv = {
     enable = true;
-    enableZshIntegration = false; # loaded via zinit turbo
+    enableZshIntegration = false; # zsh: loaded via zinit turbo
+    enableFishIntegration = true; # fish: native `direnv hook fish` (silent/nix-direnv are shell-agnostic)
     nix-direnv.enable = true;
     silent = true;
   };
@@ -1072,9 +1393,15 @@ in
 
     # Consolidated dotenv file rendered at activation — single file shell sources
     # once at startup instead of one `cat` per key. Values single-quoted (safe:
-    # current values contain no single quotes).
+    # current values contain no single quotes). Used by zsh/bash.
     templates."api-keys.env".content = lib.concatMapStrings (name: ''
       export ${name}='${config.sops.placeholder.${name}}'
+    '') (lib.attrNames config.sops.secrets);
+
+    # Same secrets, fish syntax — fish cannot source the bash-style file above.
+    # Sourced from programs.fish.interactiveShellInit. Same single-quote safety.
+    templates."api-keys.fish".content = lib.concatMapStrings (name: ''
+      set -gx ${name} '${config.sops.placeholder.${name}}'
     '') (lib.attrNames config.sops.secrets);
 
     # Individual secrets - each becomes a file
