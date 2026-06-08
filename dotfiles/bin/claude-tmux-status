@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Claude Code -> tmux status indicators.
+#
+# Colors the tmux window/pane where a Claude Code hook fired, matching the
+# `claude agents` board vocabulary:
+#     ✳  working          (UserPromptSubmit / PostToolUse)  -> dim/accent
+#     ∙  awaiting input    (Notification: permission|idle)   -> amber  (warning)
+#     ∙  done              (Stop)                            -> green  (success)
+#
+# Wired from ~/.claude/settings.json hooks. The GLYPH/COLOR rendering lives in
+# the tmux window-status-format (home.nix); this script only sets per-pane state
+# (@claude_pane_status) and the per-window severity aggregate (@claude_status).
+#
+# Multiple Claude panes in one window are merged by severity:
+#     awaiting > done > working    (a blocked pane always wins the tab color)
+#
+# Disable:
+#   • instant, no rebuild:  touch ~/.claude/.tmux-status-off   (clears + no-ops)
+#   • full removal:         set claudeTmuxStatus.enable = false in home.nix; dr
+set -uo pipefail
+
+action="${1:-clear}"
+
+# Only meaningful inside tmux.
+[[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || exit 0
+
+pane="$TMUX_PANE"
+win="$(tmux display-message -t "$pane" -p '#{window_id}' 2>/dev/null)" || exit 0
+[[ -n "$win" ]] || exit 0
+
+# Runtime kill-switch: reset this pane + window and stop.
+if [[ -f "$HOME/.claude/.tmux-status-off" ]]; then
+  tmux set-option -p -t "$pane" -u @claude_pane_status 2>/dev/null || true
+  tmux set-option -w -t "$win" -u @claude_status 2>/dev/null || true
+  tmux set-option -w -t "$win" -u @claude_title 2>/dev/null || true
+  tmux refresh-client -S 2>/dev/null || true
+  exit 0
+fi
+
+case "$action" in
+  set-active)  state="active"  ;;
+  set-waiting) state="waiting" ;;
+  set-done)    state="done"    ;;
+  clear|off|*) state=""        ;;
+esac
+
+# Record this pane's own state + capture its Claude task title (drop the leading
+# spinner glyph) into a window-scoped option, so the tab shows Claude's task no
+# matter which pane in the window is currently focused.
+if [[ -n "$state" ]]; then
+  tmux set-option -p -t "$pane" @claude_pane_status "$state" 2>/dev/null || true
+  raw="$(tmux display-message -t "$pane" -p '#{pane_title}' 2>/dev/null)"
+  tmux set-option -w -t "$win" @claude_title "${raw#* }" 2>/dev/null || true
+else
+  tmux set-option -p -t "$pane" -u @claude_pane_status 2>/dev/null || true
+fi
+
+# Recompute the window aggregate by severity: waiting > done > active > none.
+agg=""
+while IFS= read -r s; do
+  case "$s" in
+    waiting) agg="waiting"; break ;;
+    done)    agg="done" ;;
+    active)  [[ -z "$agg" ]] && agg="active" ;;
+  esac
+done < <(tmux list-panes -t "$win" -F '#{@claude_pane_status}' 2>/dev/null)
+
+if [[ -n "$agg" ]]; then
+  tmux set-option -w -t "$win" @claude_status "$agg" 2>/dev/null || true
+else
+  tmux set-option -w -t "$win" -u @claude_status 2>/dev/null || true
+  tmux set-option -w -t "$win" -u @claude_title 2>/dev/null || true
+fi
+
+tmux refresh-client -S 2>/dev/null || true
+exit 0

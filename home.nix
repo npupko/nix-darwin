@@ -26,6 +26,44 @@ let
   starshipInitZsh = pkgs.runCommand "starship-init.zsh" { } ''
     ${lib.getExe pkgs.starship} init zsh > $out
   '';
+
+  # ── Claude Code → tmux status indicators ───────────────────────────────────
+  # Tints the tmux tab (and optionally pane border) where a Claude Code hook
+  # fires, using the `claude agents` board palette:
+  #     glyph: ✳ working = coral #da7756 · ✳ awaiting = amber #fbbf24 · ✓ done = green #16a34a
+  #     "(task title)" text: accent on the focused tab, dim on the rest; idle = unchanged.
+  # Driven by ~/.claude/settings.json hooks → ~/.local/bin/claude-tmux-status,
+  # which sets a per-window @claude_status (severity-merged across panes).
+  #
+  # Disable it:
+  #   • instant, no rebuild:  touch ~/.claude/.tmux-status-off
+  #   • fully:                set enable = false here, then `dr`
+  claudeTmuxStatus = {
+    enable = true;
+    paneBorders = false; # per-pane glyph on the pane border (handy for `tdl` splits)
+  };
+
+  # Tab format: appends a colored indicator + "(task title)" per @claude_status —
+  # the glyph carries the state color, the task text the accent (focused) or dim
+  # (unfocused). Falls back to the plain format when disabled. Each conditional
+  # branch is a comma-free #[fg=…] block, so tmux's style parser stays happy.
+  ccWindowFormats =
+    if claudeTmuxStatus.enable then
+      ''
+        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=brightblack](#[fg=#fbbf24]✳#[fg=brightblack] #{=/24/…:#{@claude_title}}),#{?#{==:#{@claude_status},done}, #[fg=brightblack](#[fg=#16a34a]✓#[fg=brightblack] #{=/24/…:#{@claude_title}}),#{?#{==:#{@claude_status},active}, #[fg=brightblack](#[fg=#da7756]✳#[fg=brightblack] #{=/24/…:#{@claude_title}}),}}} "
+        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=${theme.tmux.accent}](#[fg=#fbbf24]✳#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),#{?#{==:#{@claude_status},done}, #[fg=${theme.tmux.accent}](#[fg=#16a34a]✓#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),#{?#{==:#{@claude_status},active}, #[fg=${theme.tmux.accent}](#[fg=#da7756]✳#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),}}} "
+      ''
+    else
+      ''
+        set -g window-status-format "#[fg=brightblack] #I:#W "
+        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
+      '';
+
+  # Optional: per-pane label on the pane border, tinted from per-pane @claude_pane_status.
+  ccPaneBorders = lib.optionalString (claudeTmuxStatus.enable && claudeTmuxStatus.paneBorders) ''
+    set -g pane-border-status top
+    set -g pane-border-format "#{?#{==:#{@claude_pane_status},waiting},#[fg=#fbbf24] awaiting,#{?#{==:#{@claude_pane_status},done},#[fg=#16a34a] done,#{?#{==:#{@claude_pane_status},active},#[fg=#da7756] working,#[default]}}} #{pane_title}"
+  '';
 in
 {
   imports = [
@@ -1321,10 +1359,10 @@ in
       set -g status-style "bg=default,fg=default"
       set -g status-left "#[fg=black,bg=${theme.tmux.accent},bold] #S #[bg=default] "
       set -g status-right "#{E:@voxtype} #[fg=${theme.tmux.accent}]#{?pane_in_mode,COPY ,}#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
-      set -g window-status-format "#[fg=brightblack] #I:#W "
-      set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
+      ${ccWindowFormats}
       set -g pane-border-style "fg=brightblack"
       set -g pane-active-border-style "fg=${theme.tmux.accent}"
+      ${ccPaneBorders}
       set -g message-style "bg=default,fg=${theme.tmux.accent}"
       set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
@@ -1476,6 +1514,10 @@ in
     };
     ".local/bin/voxtype-tmux" = {
       source = ./dotfiles/bin/voxtype-tmux;
+      executable = true;
+    };
+    ".local/bin/claude-tmux-status" = {
+      source = ./dotfiles/bin/claude-tmux-status;
       executable = true;
     };
   };
