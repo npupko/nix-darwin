@@ -32,6 +32,7 @@ in
     inputs.sops-nix.homeManagerModules.sops
     inputs.try.homeModules.default
     ./nvim-lsp.nix
+    ./skills.nix
   ];
 
   # try: module provides `package` and `path` options; we disable its eager
