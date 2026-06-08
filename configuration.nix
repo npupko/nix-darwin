@@ -149,6 +149,10 @@
       autoUpdate = true;
       upgrade = true;
       cleanup = "zap"; # Remove unlisted packages
+      # Homebrew >=5.1.14 gates non-interactive `--cleanup` behind explicit
+      # consent (--force/--force-cleanup/$HOMEBREW_ASK) after brew#22395 made
+      # cleanup more destructive. Drop once nix-darwin#1774 lands.
+      extraFlags = [ "--force-cleanup" ];
     };
     taps = [
       # "alvinunreal/tmuxai"
@@ -156,7 +160,7 @@
     ];
     brews = [
       "tmuxai"
-      "jujutsu"
+      "jj"
       "transmission"
       "libyaml"
       "supabase"
