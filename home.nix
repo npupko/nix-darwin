@@ -1096,6 +1096,7 @@ in
       "COPILOT_PROXY_URL"
       "REF_API_KEY"
       "REQUESTY_API_KEY"
+      "WANDB_API_KEY"
 
       # Search & research
       "TAVILY_API_KEY"
@@ -1112,6 +1113,7 @@ in
       "HARVEST_TOKEN"
       "TRELLO_API_KEY"
       "TRELLO_API_TOKEN"
+      "ONKERNEL_API_KEY"
 
       # Other APIs
       "GOOGLE_PLACES_API_KEY"
