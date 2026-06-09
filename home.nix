@@ -45,12 +45,13 @@ let
   '';
 
   # ── Claude Code → tmux status indicators ───────────────────────────────────
-  # Tints the tmux tab (and optionally pane border) where a Claude Code hook
-  # fires, using the `claude agents` board palette:
-  #     glyph: ✳ working = coral #da7756 · ✳ awaiting = amber #fbbf24 · ✓ done = green #16a34a
-  #     "(task title)" text: accent on the focused tab, dim on the rest; idle = unchanged.
-  # Driven by ~/.claude/settings.json hooks → ~/.local/bin/claude-tmux-status,
-  # which sets a per-window @claude_status (severity-merged across panes).
+  # Appends a state glyph to the tmux tab where a Claude Code hook fires, using
+  # the `claude agents` board palette:
+  #     ✻ working = coral #da7756 · ⊘ awaiting = amber #fbbf24 · ✓ done = green #16a34a
+  # Glyph only — no task title. The tab name keeps its accent(focused)/dim(rest)
+  # color; the glyph carries the state color. Driven by ~/.claude/settings.json
+  # hooks → ~/.local/bin/claude-tmux-status, which sets a per-window @claude_status
+  # (severity-merged across panes: awaiting > working > done).
   #
   # Disable it:
   #   • instant, no rebuild:  touch ~/.claude/.tmux-status-off
@@ -60,15 +61,15 @@ let
     paneBorders = false; # per-pane glyph on the pane border (handy for `tdl` splits)
   };
 
-  # Tab format: appends a colored indicator + "(task title)" per @claude_status —
-  # the glyph carries the state color, the task text the accent (focused) or dim
-  # (unfocused). Falls back to the plain format when disabled. Each conditional
+  # Tab format: appends a single state glyph per @claude_status — the glyph
+  # carries the state color, the name keeps accent (focused) / dim (unfocused).
+  # No task title. Falls back to the plain format when disabled. Each conditional
   # branch is a comma-free #[fg=…] block, so tmux's style parser stays happy.
   ccWindowFormats =
     if claudeTmuxStatus.enable then
       ''
-        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=brightblack](#[fg=#fbbf24]✳#[fg=brightblack] #{=/24/…:#{@claude_title}}),#{?#{==:#{@claude_status},done}, #[fg=brightblack](#[fg=#16a34a]✓#[fg=brightblack] #{=/24/…:#{@claude_title}}),#{?#{==:#{@claude_status},active}, #[fg=brightblack](#[fg=#da7756]✳#[fg=brightblack] #{=/24/…:#{@claude_title}}),}}} "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=${theme.tmux.accent}](#[fg=#fbbf24]✳#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),#{?#{==:#{@claude_status},done}, #[fg=${theme.tmux.accent}](#[fg=#16a34a]✓#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),#{?#{==:#{@claude_status},active}, #[fg=${theme.tmux.accent}](#[fg=#da7756]✳#[fg=${theme.tmux.accent}] #{=/60/…:#{@claude_title}}),}}} "
+        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=#fbbf24]⊘,#{?#{==:#{@claude_status},done}, #[fg=#16a34a]✓,#{?#{==:#{@claude_status},active}, #[fg=#da7756]✻,}}}#[fg=brightblack] "
+        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=#fbbf24]⊘,#{?#{==:#{@claude_status},done}, #[fg=#16a34a]✓,#{?#{==:#{@claude_status},active}, #[fg=#da7756]✻,}}}#[fg=${theme.tmux.accent},bold] "
       ''
     else
       ''
