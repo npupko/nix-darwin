@@ -37,43 +37,44 @@ in
       branch = "purple";
       dirty = "red";
     };
-    # Fish has no built-in gruvbox theme (`fish_config theme list` ships nord,
-    # catppuccin, etc. — but not gruvbox), so unlike every other tool above we
-    # spell out the syntax-highlighting palette as explicit hex. Rendered into
-    # `set -g fish_color_*` by fishThemeInit in home.nix. Gruvbox Dark (medium).
+    # Fish has no built-in gruvbox theme, so its syntax-highlighting palette is
+    # spelled out as explicit hex here. Per user preference fish uses the softer
+    # gruvbox-material palette (sainnhe/gruvbox-material), not classic gruvbox —
+    # adopted verbatim from dmitriyb/dot config/themes/gruvbox/fish.theme:
+    #   https://github.com/dmitriyb/dot/blob/HEAD/config/themes/gruvbox/fish.theme
+    # Rendered into `set -g fish_color_*` by fishThemeInit in home.nix.
     fish.colors = {
-      normal = "ebdbb2"; # fg1
-      command = "b8bb26"; # bright green
-      keyword = "fb4934"; # bright red
-      quote = "fabd2f"; # bright yellow  (string literals)
-      redirection = "8ec07c"; # bright aqua    (> >> |)
-      end = "fe8019"; # bright orange  (; &)
-      error = "fb4934"; # bright red
-      param = "d5c4a1"; # fg2            (arguments)
-      option = "8ec07c"; # bright aqua    (--flags)
+      normal = "d4be98";
+      command = "7daea3"; # teal
+      keyword = "d3869b"; # purple
+      quote = "d8a657"; # yellow
+      redirection = "d4be98";
+      end = "d65d0e"; # orange
+      error = "ea6962"; # red
+      param = "a9b665"; # green
       comment = "928374"; # gray
-      operator = "d3869b"; # bright purple
-      escape = "fe8019"; # bright orange
-      autosuggestion = "7c6f64"; # bg4            (subdued)
-      selection = "--background=504945";
+      operator = "89b482"; # aqua
+      escape = "d3869b"; # purple
+      autosuggestion = "928374"; # gray
+      selection = "--background=3c3836";
       search_match = "--background=504945";
-      cwd = "b8bb26"; # green
-      cwd_root = "fb4934"; # red
-      user = "b8bb26"; # green
-      host = "83a598"; # bright blue
-      host_remote = "8ec07c"; # bright aqua
-      status = "fb4934"; # red            (nonzero exit)
-      cancel = "fb4934"; # red
-      gray = "928374";
-      history_current = "--bold";
+      cwd = "7daea3"; # teal
+      user = "89b482"; # aqua
+      host = "a9b665"; # green
+      host_remote = "d8a657"; # yellow
+      status = "ea6962"; # red
+      cancel = "ea6962"; # red
       valid_path = "--underline";
     };
     fish.pager = {
-      progress = "665c54"; # bg3
-      prefix = "d3869b --bold"; # purple
-      completion = "ebdbb2"; # fg1
-      description = "928374"; # gray
-      selected_background = "--background=504945";
+      progress = "928374";
+      prefix = "7daea3";
+      completion = "d4be98";
+      description = "928374";
+      selected_background = "--background=3c3836";
+      selected_prefix = "7daea3";
+      selected_completion = "d4be98";
+      selected_description = "928374";
     };
   };
 
@@ -91,41 +92,38 @@ in
       branch = "purple";
       dirty = "red";
     };
-    # See gruvbox-dark.fish above. Gruvbox Light (medium) — faded/neutral hues
-    # for legibility on the light background.
+    # See gruvbox-dark.fish above — gruvbox-material light, adopted verbatim from
+    # jasonlong/dotfiles fish/themes/gruvbox_material_light.theme:
+    #   https://github.com/jasonlong/dotfiles/blob/HEAD/fish/themes/gruvbox_material_light.theme
     fish.colors = {
-      normal = "3c3836"; # fg1 (dark)
-      command = "79740e"; # green
-      keyword = "9d0006"; # red
-      quote = "b57614"; # yellow
-      redirection = "427b58"; # aqua
-      end = "af3a03"; # orange
-      error = "9d0006"; # red
-      param = "504945"; # fg2 (dark)
-      option = "427b58"; # aqua
+      normal = "654735";
+      command = "6c782e"; # green
+      keyword = "945e80"; # purple
+      quote = "4c7a5d"; # aqua
+      redirection = "45707a"; # blue
+      end = "c35e0a"; # orange
+      error = "c14a4a"; # red
+      param = "654735";
       comment = "928374"; # gray
-      operator = "8f3f71"; # purple
-      escape = "af3a03"; # orange
+      operator = "45707a"; # blue
+      escape = "4c7a5d"; # aqua
       autosuggestion = "a89984"; # gray
-      selection = "--background=d5c4a1";
-      search_match = "--background=d5c4a1";
-      cwd = "79740e"; # green
-      cwd_root = "9d0006"; # red
-      user = "79740e"; # green
-      host = "076678"; # blue
-      host_remote = "427b58"; # aqua
-      status = "9d0006"; # red
-      cancel = "9d0006"; # red
-      gray = "928374";
-      history_current = "--bold";
-      valid_path = "--underline";
+      selection = "--background=ebdbb2 --foreground=654735";
+      search_match = "--background=b47109 --foreground=fbf1c7";
+      cwd = "b47109"; # yellow
+      cwd_root = "c14a4a"; # red
+      user = "4c7a5d"; # aqua
+      host = "6c782e"; # green
+      host_remote = "b47109"; # yellow
+      status = "c14a4a"; # red
+      cancel = "c14a4a"; # red
     };
     fish.pager = {
-      progress = "bdae93"; # fg3
-      prefix = "8f3f71 --bold"; # purple
-      completion = "3c3836"; # fg1
-      description = "928374"; # gray
-      selected_background = "--background=d5c4a1";
+      progress = "fbf1c7 --background=6c782e";
+      prefix = "6c782e --bold";
+      completion = "654735";
+      description = "928374";
+      selected_background = "--background=ebdbb2";
     };
   };
 
