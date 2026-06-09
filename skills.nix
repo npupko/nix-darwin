@@ -51,6 +51,7 @@ let
     image-gen = { };
     mise-bootstrap = { };
     process-book = { };
+    prototype = { };
     stop-slop = { };
     system-design = { };
     tdd = { };
