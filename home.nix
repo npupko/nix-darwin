@@ -20,6 +20,23 @@
 let
   theme = themes.${themeName};
 
+  # Render the active theme's fish syntax-highlighting palette into fish script.
+  # Fish is the only CLI here without a built-in gruvbox theme, so its palette
+  # lives as explicit hex under `theme.fish` (see themes.nix) rather than a named
+  # theme reference. Emitted from interactiveShellInit — which fish sources AFTER
+  # conf.d/*.fish, so these `set -g` lines override any value set there.
+  # Themes without a `fish` attr (nord, catppuccin) fall back to fish defaults.
+  fishThemeInit =
+    let
+      f = theme.fish or null;
+    in
+    lib.optionalString (f != null) (
+      lib.concatStringsSep "\n" (
+        (lib.mapAttrsToList (k: v: "set -g fish_color_${k} ${v}") (f.colors or { }))
+        ++ (lib.mapAttrsToList (k: v: "set -g fish_pager_color_${k} ${v}") (f.pager or { }))
+      )
+    );
+
   # Pre-generate starship zsh init at build time. Shell startup sources the
   # store file directly — no subprocess fork per shell (~32ms saved). Cache
   # invalidates automatically when pkgs.starship store path changes.
@@ -684,6 +701,12 @@ in
       # default fish_greeting function does `test -n "$fish_greeting"; and echo`,
       # so an empty value prints nothing — verified, no leftover blank line).
       set -g fish_greeting
+
+      # Syntax-highlighting palette for the active theme (gruvbox). The
+      # documented way to theme fish from config is `set -g fish_color_*` here;
+      # fish sources config.fish after conf.d, so this overrides the legacy
+      # ~/.config/fish/conf.d/fish_frozen_theme.fish if it ever reappears.
+      ${fishThemeInit}
 
       # Load API keys from sops-nix (fish-syntax template — sourced natively).
       test -f "${config.sops.templates."api-keys.fish".path}"; and source "${config.sops.templates."api-keys.fish".path}"
