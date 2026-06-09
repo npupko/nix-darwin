@@ -46,7 +46,6 @@ let
     caveman = { };
     eventstorming = { };
     grill-me = { };
-    grill-with-docs = { };
     humanize = { };
     image-gen = { };
     mise-bootstrap = { };
@@ -54,15 +53,14 @@ let
     stop-slop = { };
     system-design = { };
     tdd = { };
-    tldraw-canvas = { };
-    to-issues = { };
     to-my-style = { };
     to-prd = { };
     tradeoffs = { };
-    ui-wiki = { };
     walkthrough = { };
     zoom-out = { };
-    skill-creator = { };
+    skill-creator = {
+      to = [ "agents" ]; # pi + Codex only; Claude has its own native skill-creator
+    };
     playground = {
       status = "experimental";
     };
@@ -80,18 +78,6 @@ let
     # preserve behavior — several lean on Claude-specific tooling (the `Agent`
     # tool, `disable-model-invocation`, `allowed-tools`, `model:`). Drop the
     # `to` line on any you want shared to pi + Codex as well.
-    coordinator = {
-      to = [ "claude" ];
-    };
-    ddd-aggregate = {
-      to = [ "claude" ];
-    };
-    ddd-context-pattern = {
-      to = [ "claude" ];
-    };
-    ddd-discover = {
-      to = [ "claude" ];
-    };
     develop = {
       to = [ "claude" ];
     };
@@ -101,34 +87,13 @@ let
     handoff = {
       to = [ "claude" ];
     };
-    improve-prompt = {
-      to = [ "claude" ];
-    };
-    incus-pi4 = {
-      to = [ "claude" ];
-    };
-    manage-homelab = {
-      to = [ "claude" ];
-    };
-    pi-extension = {
-      to = [ "claude" ];
-    };
     prove-it = {
-      to = [ "claude" ];
-    };
-    reverie = {
       to = [ "claude" ];
     };
     team = {
       to = [ "claude" ];
     };
     test-stand = {
-      to = [ "claude" ];
-    };
-    things-inbox = {
-      to = [ "claude" ];
-    };
-    verify = {
       to = [ "claude" ];
     };
   };
