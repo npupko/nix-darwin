@@ -76,6 +76,23 @@
               extra-substituters = [
                 "https://nix-community.cachix.org"
                 "https://devenv.cachix.org"
+                # FlakeHub Cache — caches *our own* builds, so an unavoidable source
+                # compile (e.g. a package not yet on cache.nixos.org at a fresh
+                # aarch64-darwin nixpkgs pin) only happens once: re-runs and other
+                # machines substitute it instead of recompiling. The Determinate
+                # installer already lists this in trusted-substituters but NOT in the
+                # queried `substituters` set, so nix never actually hit it — adding it
+                # here turns it on.
+                #
+                # No keys needed here: the installer writes the full cache.flakehub.com
+                # signing-key set (rotated/sharded, currently -3…-10) into
+                # /etc/nix/nix.conf and keeps it current; nix trusts the union of all
+                # config files, so duplicating them here would only rot on rotation.
+                #
+                # Requires auth (JWT, not anonymous): run `sudo determinate-nixd login`
+                # once to write /nix/var/determinate/netrc, else builds emit cache
+                # auth warnings.
+                "https://cache.flakehub.com"
               ];
               extra-trusted-public-keys = [
                 "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
