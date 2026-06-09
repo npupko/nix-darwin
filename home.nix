@@ -255,6 +255,7 @@ in
     grep = "ug -G";
     find = "bfs";
     c = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+    ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
     cx = "opencode";
     ls = "eza";
     ll = "eza -lh --group-directories-first --icons=auto";
