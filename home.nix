@@ -200,6 +200,17 @@ in
           echo "Theme applied: $t"
         '';
     })
+
+    # Atlas — per-investigation, semantically-zoomable knowledge maps.
+    # Thin wrapper over the live source at ~/Projects/npupko/atlas (edits apply
+    # immediately). Uses nix's bun, independent of mise; needs `bun install` to
+    # have run in the repo so `marked` resolves. Replace with a flake package
+    # once Atlas stabilizes (bun build --compile, deps vendored).
+    (pkgs.writeShellApplication {
+      name = "atlas";
+      runtimeInputs = [ pkgs.bun ];
+      text = ''exec bun "$HOME/Projects/npupko/atlas/bin/atlas.ts" "$@"'';
+    })
   ];
 
   # Session variables
@@ -1100,7 +1111,6 @@ in
 
       # AI tools
       ".aider*"
-      ".claude/"
       ".mcp.json*"
       ".cursor/"
       ".kilocode/"

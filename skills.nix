@@ -43,6 +43,7 @@ let
   # Delete a whole line to unlink that skill everywhere (home.file self-prunes).
   skills = {
     angles = { };
+    atlas = { };
     breakdown = { };
     caveman = { };
     eventstorming = { };
