@@ -215,6 +215,13 @@ keybinds clear-defaults=true {
     renamepane {
         bind "esc" { UndoRenamePane; SwitchToMode "pane"; }
     }
+    // macOS terminals send Alt+Right/Left as Alt+f/Alt+b (readline word-jump),
+    // which collided with ToggleFloatingPanes. Move it off Alt f so Alt+Right
+    // works as MoveFocusOrTab. See zellij-org/zellij#4151.
+    normal {
+        unbind "Alt f"
+        bind "Alt F" { ToggleFloatingPanes; }
+    }
 }
 
 // Plugin aliases - can be used to change the implementation of Zellij
