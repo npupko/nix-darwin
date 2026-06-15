@@ -162,15 +162,23 @@
     onActivation = {
       autoUpdate = true;
       upgrade = true;
-      cleanup = "zap"; # Remove unlisted packages
-      # Homebrew >=5.1.14 gates non-interactive `--cleanup` behind explicit
-      # consent (--force/--force-cleanup/$HOMEBREW_ASK) after brew#22395 made
-      # cleanup more destructive. Drop once nix-darwin#1774 lands.
-      extraFlags = [ "--force-cleanup" ];
+      # Zap unlisted packages without nix-darwin's built-in cleanup, which still
+      # passes the `brew bundle --cleanup` switch that Homebrew 6.0 deprecated
+      # ("There is no replacement"). `--force-cleanup` is the non-deprecated
+      # equivalent and `--zap` rides along with it in the same install pass
+      # (see Homebrew bundle/subcommand/install.rb: cleanup runs when
+      # force_cleanup? is set, zap-aware). Switch back to `cleanup = "zap"`
+      # once nix-darwin#1774 stops emitting --cleanup.
+      cleanup = "none";
+      extraFlags = [
+        "--zap"
+        "--force-cleanup"
+      ];
     };
     taps = [
       # "alvinunreal/tmuxai"
       "supabase/tap"
+      "openclaw/tap" # gogcli — Google Workspace CLI (Gmail/Calendar)
     ];
     brews = [
       "tmuxai"
@@ -180,6 +188,7 @@
       "supabase"
       "ollama"
       "glow"
+      "gogcli"
     ];
     casks = [
       "ghostty@tip"
