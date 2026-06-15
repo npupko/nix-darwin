@@ -43,7 +43,7 @@ let
   # Delete a whole line to unlink that skill everywhere (home.file self-prunes).
   skills = {
     angles = { };
-    atlas = { };
+    # atlas = { };
     breakdown = { };
     caveman = { };
     eventstorming = { };
@@ -98,6 +98,10 @@ let
     };
     test-stand = {
       to = [ "claude" ];
+    };
+
+    retro = {
+      to = [ "claude" ]; # AskUserQuestion + Claude transcript mining; meaningless on pi/Codex
     };
   };
 
