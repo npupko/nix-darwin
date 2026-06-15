@@ -89,6 +89,7 @@ in
     inputs.try.homeModules.default
     ./nvim-lsp.nix
     ./skills.nix
+    ./claude-accounts.nix
   ];
 
   # try: module provides `package` and `path` options; we disable its eager
@@ -206,11 +207,11 @@ in
     # immediately). Uses nix's bun, independent of mise; needs `bun install` to
     # have run in the repo so `marked` resolves. Replace with a flake package
     # once Atlas stabilizes (bun build --compile, deps vendored).
-    (pkgs.writeShellApplication {
-      name = "atlas";
-      runtimeInputs = [ pkgs.bun ];
-      text = ''exec bun "$HOME/Projects/npupko/atlas/bin/atlas.ts" "$@"'';
-    })
+    # (pkgs.writeShellApplication {
+    #   name = "atlas";
+    #   runtimeInputs = [ pkgs.bun ];
+    #   text = ''exec bun "$HOME/Projects/npupko/atlas/bin/atlas.ts" "$@"'';
+    # })
   ];
 
   # Session variables
@@ -1528,6 +1529,8 @@ in
       "PROXY_PORT"
       "PROXY_USER"
       "PROXY_PASS"
+
+      "SOLIDTIME_PI5_API_KEY"
     ] (_: { });
   };
 
