@@ -37,6 +37,21 @@ let
       )
     );
 
+  # glow's `style` value for the active theme. glamour ships no gruvbox style, so
+  # gruvbox themes name a custom JSON (dotfiles/glow/<name>.json) which is resolved
+  # to its installed ~/.config path here; any other value (dark/light/…) is passed
+  # through verbatim as a glamour built-in style name. glow reads ~/.config/glow/
+  # first because XDG_CONFIG_HOME is set (see glow main.go: XDG dir is prepended
+  # ahead of macOS ~/Library/Preferences).
+  glowStyle =
+    let
+      name = theme.glow or "auto";
+    in
+    if builtins.pathExists (./dotfiles/glow + "/${name}.json") then
+      "${config.home.homeDirectory}/.config/glow/${name}.json"
+    else
+      name;
+
   # Pre-generate starship zsh init at build time. Shell startup sources the
   # store file directly — no subprocess fork per shell (~32ms saved). Cache
   # invalidates automatically when pkgs.starship store path changes.
@@ -1541,6 +1556,13 @@ in
       builtins.readFile ./dotfiles/zellij/config.kdl
     );
     ".config/theme/current".text = theme.neovim;
+    # glow: custom gruvbox glamour styles + config pointing at the active one.
+    # Both JSONs are always installed so glowStyle resolves regardless of theme.
+    ".config/glow/gruvbox-dark.json".source = ./dotfiles/glow/gruvbox-dark.json;
+    ".config/glow/gruvbox-light.json".source = ./dotfiles/glow/gruvbox-light.json;
+    ".config/glow/glow.yml".text = ''
+      style: "${glowStyle}"
+    '';
     ".aider.conf.yml".source = ./dotfiles/aider.conf.yml;
     ".local/bin/workspace-up" = {
       source = ./dotfiles/bin/workspace-up;

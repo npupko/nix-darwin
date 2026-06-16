@@ -32,6 +32,11 @@ in
     zellij = "gruvbox-dark";
     helix = "gruvbox";
     neovim = "gruvbox";
+    # glamour (glow) has no built-in gruvbox; this names a custom style JSON
+    # shipped in dotfiles/glow/. Values matching a dotfiles/glow/<name>.json are
+    # resolved to that file's path in home.nix; other values pass through as a
+    # built-in glamour style name (dark/light/dracula/…).
+    glow = "gruvbox-dark";
     tmux.accent = "blue";
     starship = defaultStarship // {
       branch = "purple";
@@ -87,6 +92,8 @@ in
     zellij = "gruvbox-light";
     helix = "gruvbox_light";
     neovim = "gruvbox-light";
+    glow = "gruvbox-light"; # see gruvbox-dark.glow above
+
     tmux.accent = "yellow";
     starship = defaultStarship // {
       branch = "purple";
@@ -136,6 +143,7 @@ in
     zellij = "nord";
     helix = "nord";
     neovim = "nord";
+    glow = "dark"; # no gruvbox-style JSON for nord — use glamour's built-in dark
     tmux.accent = "cyan";
     starship = defaultStarship // {
       branch = "blue";
@@ -152,6 +160,7 @@ in
     zellij = "catppuccin-latte";
     helix = "catppuccin_latte";
     neovim = "catppuccin-latte";
+    glow = "light"; # glamour built-in (no catppuccin style JSON)
     tmux.accent = "yellow";
     starship = defaultStarship // {
       branch = "magenta";
@@ -168,6 +177,7 @@ in
     zellij = "catppuccin-mocha";
     helix = "catppuccin_mocha";
     neovim = "catppuccin-mocha";
+    glow = "dark"; # glamour built-in (no catppuccin style JSON)
     tmux.accent = "magenta";
     starship = defaultStarship // {
       branch = "magenta";
