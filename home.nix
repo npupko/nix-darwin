@@ -348,6 +348,7 @@ in
         "npm:@musistudio/claude-code-router" = "latest";
         "npm:@earendil-works/pi-coding-agent" = "latest";
         "npm:@playwright/cli" = "latest";
+        "npm:@npupko/hibi" = "latest";
         "cargo:rtk-ai/rtk" = "latest";
 
         # Dev tools
@@ -500,6 +501,7 @@ in
 
         # Claude with alternative model providers
         claude-deepseek() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
           ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
           ANTHROPIC_MODEL=deepseek-chat \
@@ -510,6 +512,7 @@ in
         }
 
         claude-xai() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=https://api.x.ai/ \
           ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
           ANTHROPIC_MODEL=grok-code-fast-1 \
@@ -520,6 +523,7 @@ in
         }
 
         claude-zai() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
           ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
           ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
@@ -529,6 +533,7 @@ in
         }
 
         claude-qwen() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
           ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
           ANTHROPIC_MODEL=Qwen3-Coder-Plus \
@@ -539,6 +544,7 @@ in
         }
 
         claude-fireworks() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
           ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
           ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
@@ -550,16 +556,20 @@ in
         }
 
         claude-kimi() {
-          ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic \
-          ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY \
-          ANTHROPIC_MODEL=kimi-k2-turbo-preview \
-          ANTHROPIC_SMALL_FAST_MODEL=kimi-k2-turbo-preview \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2-turbo-preview \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-k2-turbo-preview \
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+          ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ \
+          ANTHROPIC_API_KEY=$KIMI_API_KEY \
+          ANTHROPIC_MODEL=kimi-for-coding \
+          ANTHROPIC_SMALL_FAST_MODEL=kimi-for-coding \
+          ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2.7-code-highspeed \
+          ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-for-coding \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL=kimi-for-coding \
+          CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144 \
           claude
         }
 
         claude-router() {
+          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
           ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
           claude
         }
@@ -576,8 +586,8 @@ in
         }
 
         claude-minimax() {
-          ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
           CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+          ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
           ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
           ANTHROPIC_MODEL=MiniMax-M2.7 \
           ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
@@ -755,6 +765,7 @@ in
       # ---- Claude with alternative model providers ----
       # fish ≥3.2 supports the `VAR=val cmd` prefix; fish is 4.7.1 here.
       claude-deepseek = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
         ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
         ANTHROPIC_MODEL=deepseek-chat \
@@ -765,6 +776,7 @@ in
       '';
 
       claude-xai = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=https://api.x.ai/ \
         ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
         ANTHROPIC_MODEL=grok-code-fast-1 \
@@ -775,6 +787,7 @@ in
       '';
 
       claude-zai = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
         ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
         ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
@@ -784,6 +797,7 @@ in
       '';
 
       claude-qwen = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
         ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
         ANTHROPIC_MODEL=Qwen3-Coder-Plus \
@@ -794,6 +808,7 @@ in
       '';
 
       claude-fireworks = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
         ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
         ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
@@ -805,23 +820,27 @@ in
       '';
 
       claude-kimi = ''
-        ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic \
-        ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY \
-        ANTHROPIC_MODEL=kimi-k2-turbo-preview \
-        ANTHROPIC_SMALL_FAST_MODEL=kimi-k2-turbo-preview \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2-turbo-preview \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-k2-turbo-preview \
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+        ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ \
+        ANTHROPIC_API_KEY=$KIMI_API_KEY \
+        ANTHROPIC_MODEL=kimi-for-coding \
+        ANTHROPIC_SMALL_FAST_MODEL=kimi-for-coding \
+        ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2.7-code-highspeed \
+        ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-for-coding \
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=kimi-for-coding \
+        CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144 \
         claude
       '';
 
       claude-router = ''
+        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
         ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
         claude
       '';
 
       claude-minimax = ''
-        ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
         CLAUDE_CODE_TMUX_TRUECOLOR=1 \
+        ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
         ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
         ANTHROPIC_MODEL=MiniMax-M2.7 \
         ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
@@ -1512,6 +1531,7 @@ in
       "MINIMAX_API_KEY"
       "GEMINI_API_KEY"
       "CEREBRAS_API_KEY"
+      "WAFER_API_KEY"
 
       # AI routing & proxying
       "OPENROUTER_API_KEY"
@@ -1520,6 +1540,7 @@ in
       "REF_API_KEY"
       "REQUESTY_API_KEY"
       "WANDB_API_KEY"
+      "KIMI_API_KEY"
 
       # Search & research
       "TAVILY_API_KEY"
