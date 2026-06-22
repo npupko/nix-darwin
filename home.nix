@@ -323,6 +323,12 @@ in
         trusted_config_paths = [
           "/Users/${username}/Projects"
         ];
+        # Disable mise's default ~24h supply-chain release-age delay. It
+        # permanently breaks amp/@ampcode/cli (publishes continuously, so no
+        # version is ever old enough → "no versions found matching date filter")
+        # and emits noisy "newer release ignored" warnings for other fast-moving
+        # AI CLIs (qwen-code, pi-coding-agent). We always want latest here.
+        minimum_release_age = "0";
       };
       tools = {
         rust = "latest";
@@ -335,7 +341,8 @@ in
         # AI CLI tools
         "npm:@google/gemini-cli" = "latest";
         "npm:@openai/codex" = "latest";
-        "npm:@sourcegraph/amp" = "latest";
+        # amp's real package; @sourcegraph/amp's bin path doesn't resolve under mise.
+        "npm:@ampcode/cli" = "latest";
         "npm:@qwen-code/qwen-code" = "latest";
         "npm:opencode-ai" = "latest";
         "npm:@musistudio/claude-code-router" = "latest";
