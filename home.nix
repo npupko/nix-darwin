@@ -65,7 +65,7 @@ in
     inputs.sops-nix.homeManagerModules.sops
     inputs.try.homeModules.default
     ./nvim-lsp.nix
-    ./skills.nix
+    ./harness-assets
     ./claude
   ];
 
