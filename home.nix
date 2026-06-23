@@ -59,44 +59,6 @@ let
     ${lib.getExe pkgs.starship} init zsh > $out
   '';
 
-  # ── Claude Code → tmux status indicators ───────────────────────────────────
-  # Appends a state glyph to the tmux tab where a Claude Code hook fires, using
-  # the `claude agents` board palette:
-  #     ✻ working = coral #da7756 · ⊘ awaiting = amber #fbbf24 · ✓ done = green #16a34a
-  # Glyph only — no task title. The tab name keeps its accent(focused)/dim(rest)
-  # color; the glyph carries the state color. Driven by ~/.claude/settings.json
-  # hooks → ~/.local/bin/claude-tmux-status, which sets a per-window @claude_status
-  # (severity-merged across panes: awaiting > working > done).
-  #
-  # Disable it:
-  #   • instant, no rebuild:  touch ~/.claude/.tmux-status-off
-  #   • fully:                set enable = false here, then `dr`
-  claudeTmuxStatus = {
-    enable = true;
-    paneBorders = false; # per-pane glyph on the pane border (handy for `tdl` splits)
-  };
-
-  # Tab format: appends a single state glyph per @claude_status — the glyph
-  # carries the state color, the name keeps accent (focused) / dim (unfocused).
-  # No task title. Falls back to the plain format when disabled. Each conditional
-  # branch is a comma-free #[fg=…] block, so tmux's style parser stays happy.
-  ccWindowFormats =
-    if claudeTmuxStatus.enable then
-      ''
-        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=#fbbf24]⊘,#{?#{==:#{@claude_status},done}, #[fg=#16a34a]✓,#{?#{==:#{@claude_status},active}, #[fg=#da7756]✻,}}}#[fg=brightblack] "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{==:#{@claude_status},waiting}, #[fg=#fbbf24]⊘,#{?#{==:#{@claude_status},done}, #[fg=#16a34a]✓,#{?#{==:#{@claude_status},active}, #[fg=#da7756]✻,}}}#[fg=${theme.tmux.accent},bold] "
-      ''
-    else
-      ''
-        set -g window-status-format "#[fg=brightblack] #I:#W "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
-      '';
-
-  # Optional: per-pane label on the pane border, tinted from per-pane @claude_pane_status.
-  ccPaneBorders = lib.optionalString (claudeTmuxStatus.enable && claudeTmuxStatus.paneBorders) ''
-    set -g pane-border-status top
-    set -g pane-border-format "#{?#{==:#{@claude_pane_status},waiting},#[fg=#fbbf24] awaiting,#{?#{==:#{@claude_pane_status},done},#[fg=#16a34a] done,#{?#{==:#{@claude_pane_status},active},#[fg=#da7756] working,#[default]}}} #{pane_title}"
-  '';
 in
 {
   imports = [
@@ -104,7 +66,7 @@ in
     inputs.try.homeModules.default
     ./nvim-lsp.nix
     ./skills.nix
-    ./claude-accounts.nix
+    ./claude
   ];
 
   # try: module provides `package` and `path` options; we disable its eager
@@ -259,7 +221,6 @@ in
   # PATH additions
   home.sessionPath = [
     "/Users/${username}/.local/bin"
-    "/Users/${username}/.claude/local"
     "/Users/${username}/Projects/npupko/utility/target/release"
   ];
 
@@ -282,8 +243,6 @@ in
     fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
     grep = "ug -G";
     find = "bfs";
-    c = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
-    ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
     cx = "opencode";
     ls = "eza";
     ll = "eza -lh --group-directories-first --icons=auto";
@@ -345,7 +304,6 @@ in
         "npm:@ampcode/cli" = "latest";
         "npm:@qwen-code/qwen-code" = "latest";
         "npm:opencode-ai" = "latest";
-        "npm:@musistudio/claude-code-router" = "latest";
         "npm:@earendil-works/pi-coding-agent" = "latest";
         "npm:@playwright/cli" = "latest";
         "npm:@npupko/hibi" = "latest";
@@ -499,81 +457,6 @@ in
         #   return $(( 128 + $1 ))
         # }
 
-        # Claude with alternative model providers
-        claude-deepseek() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
-          ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
-          ANTHROPIC_MODEL=deepseek-chat \
-          ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner \
-          claude
-        }
-
-        claude-xai() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.x.ai/ \
-          ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
-          ANTHROPIC_MODEL=grok-code-fast-1 \
-          ANTHROPIC_SMALL_FAST_MODEL=grok-code-fast-1 \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=grok-code-fast-1 \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=grok-4 \
-          claude
-        }
-
-        claude-zai() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
-          ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-4.7 \
-          ANTHROPIC_DEFAULT_HAIKU_MODEL=GLM-4.5-Air \
-          claude
-        }
-
-        claude-qwen() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
-          ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
-          ANTHROPIC_MODEL=Qwen3-Coder-Plus \
-          ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max \
-          claude
-        }
-
-        claude-fireworks() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
-          ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
-          ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-          ANTHROPIC_SMALL_FAST_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-          ANTHROPIC_DEFAULT_HAIKU_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-          claude
-        }
-
-        claude-kimi() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ \
-          ANTHROPIC_API_KEY=$KIMI_API_KEY \
-          ANTHROPIC_MODEL=kimi-for-coding \
-          ANTHROPIC_SMALL_FAST_MODEL=kimi-for-coding \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2.7-code-highspeed \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-for-coding \
-          ANTHROPIC_DEFAULT_HAIKU_MODEL=kimi-for-coding \
-          CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144 \
-          claude
-        }
-
-        claude-router() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
-          claude
-        }
-
         cproxy() {
           local u p url
           u=$(jq -sRr @uri <<<"$PROXY_USER")
@@ -583,21 +466,6 @@ in
           HTTPS_PROXY="$url" \
             NO_PROXY="localhost,127.0.0.1,::1" \
             claude --dangerously-skip-permissions "$@"
-        }
-
-        claude-minimax() {
-          CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-          ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
-          ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
-          ANTHROPIC_MODEL=MiniMax-M2.7 \
-          ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
-          ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2.7 \
-          ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2.7 \
-          ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2.7 \
-          API_TIMEOUT_MS=3000000 \
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-          CLAUDE_CODE_TELEMETRY=0 \
-          claude --dangerously-skip-permissions
         }
 
         # Edit fuzzy-found file
@@ -762,97 +630,6 @@ in
     # Each body is fish_indent-validated at build time, so a syntax error here
     # fails `darwin-rebuild` rather than producing a broken shell.
     functions = {
-      # ---- Claude with alternative model providers ----
-      # fish ≥3.2 supports the `VAR=val cmd` prefix; fish is 4.7.1 here.
-      claude-deepseek = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
-        ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
-        ANTHROPIC_MODEL=deepseek-chat \
-        ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-chat \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-reasoner \
-        claude
-      '';
-
-      claude-xai = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.x.ai/ \
-        ANTHROPIC_AUTH_TOKEN=$XAI_API_KEY \
-        ANTHROPIC_MODEL=grok-code-fast-1 \
-        ANTHROPIC_SMALL_FAST_MODEL=grok-code-fast-1 \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=grok-code-fast-1 \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=grok-4 \
-        claude
-      '';
-
-      claude-zai = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
-        ANTHROPIC_AUTH_TOKEN=$Z_AI_API_KEY \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-4.7 \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-4.7 \
-        ANTHROPIC_DEFAULT_HAIKU_MODEL=GLM-4.5-Air \
-        claude
-      '';
-
-      claude-qwen = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://dashscope-intl.aliyuncs.com/api/v2/apps/claude-code-proxy \
-        ANTHROPIC_AUTH_TOKEN=$QWEN_API_KEY \
-        ANTHROPIC_MODEL=Qwen3-Coder-Plus \
-        ANTHROPIC_SMALL_FAST_MODEL=Qwen-Plus \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=Qwen3-Coder-Plus \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=Qwen3-Max \
-        claude
-      '';
-
-      claude-fireworks = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference \
-        ANTHROPIC_AUTH_TOKEN=$FIREWORKS_API_KEY \
-        ANTHROPIC_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-        ANTHROPIC_SMALL_FAST_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-        ANTHROPIC_DEFAULT_HAIKU_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=accounts/fireworks/routers/kimi-k2p5-turbo \
-        claude
-      '';
-
-      claude-kimi = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ \
-        ANTHROPIC_API_KEY=$KIMI_API_KEY \
-        ANTHROPIC_MODEL=kimi-for-coding \
-        ANTHROPIC_SMALL_FAST_MODEL=kimi-for-coding \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=kimi-k2.7-code-highspeed \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=kimi-for-coding \
-        ANTHROPIC_DEFAULT_HAIKU_MODEL=kimi-for-coding \
-        CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144 \
-        claude
-      '';
-
-      claude-router = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=http://127.0.0.1:8080 \
-        claude
-      '';
-
-      claude-minimax = ''
-        CLAUDE_CODE_TMUX_TRUECOLOR=1 \
-        ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic \
-        ANTHROPIC_AUTH_TOKEN=$MINIMAX_API_KEY \
-        ANTHROPIC_MODEL=MiniMax-M2.7 \
-        ANTHROPIC_SMALL_FAST_MODEL=MiniMax-M2.7 \
-        ANTHROPIC_DEFAULT_SONNET_MODEL=MiniMax-M2.7 \
-        ANTHROPIC_DEFAULT_OPUS_MODEL=MiniMax-M2.7 \
-        ANTHROPIC_DEFAULT_HAIKU_MODEL=MiniMax-M2.7 \
-        API_TIMEOUT_MS=3000000 \
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-        CLAUDE_CODE_TELEMETRY=0 \
-        claude --dangerously-skip-permissions
-      '';
-
       # Claude through the corporate HTTPS proxy. Here-string `<<<` → pipe;
       # keep jq @uri (RFC-3986) for credential encoding rather than fish's
       # string escape --style=url (char set not byte-equivalent).
@@ -1188,7 +965,6 @@ in
       "docker-compose.override.yml"
       "local/"
       "coverage/"
-      ".ignore"
       ".ripgreprc"
       "mise.local.toml"
       "*_cache*.json"
@@ -1436,10 +1212,8 @@ in
       set -g status-style "bg=default,fg=default"
       set -g status-left "#[fg=black,bg=${theme.tmux.accent},bold] #S #[bg=default] "
       set -g status-right "#{E:@voxtype} #[fg=${theme.tmux.accent}]#{?pane_in_mode,COPY ,}#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
-      ${ccWindowFormats}
       set -g pane-border-style "fg=brightblack"
       set -g pane-active-border-style "fg=${theme.tmux.accent}"
-      ${ccPaneBorders}
       set -g message-style "bg=default,fg=${theme.tmux.accent}"
       set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
@@ -1602,10 +1376,6 @@ in
     };
     ".local/bin/voxtype-tmux" = {
       source = ./dotfiles/bin/voxtype-tmux;
-      executable = true;
-    };
-    ".local/bin/claude-tmux-status" = {
-      source = ./dotfiles/bin/claude-tmux-status;
       executable = true;
     };
   };

@@ -25,6 +25,7 @@
   ...
 }:
 let
+  cfg = config.myConfig.claude;
   link = config.lib.file.mkOutOfStoreSymlink; # absolute string, live (see skills.nix header)
   homeDir = "/Users/${username}";
   personal = "${homeDir}/.claude";
@@ -57,43 +58,50 @@ let
   ];
 in
 {
-  # Symlink each shared item from the work dir to the live personal copy.
-  home.file = lib.listToAttrs (
-    map (n: {
-      name = "${workRel}/${n}";
-      value.source = link "${personal}/${n}";
-    }) shared
-  );
+  config = lib.mkIf cfg.enable {
+    # Symlink each shared item from the work dir to the live personal copy.
+    home.file = lib.listToAttrs (
+      map (n: {
+        name = "${workRel}/${n}";
+        value.source = link "${personal}/${n}";
+      }) shared
+    );
 
-  # cw / cwa: working account. Same flags as c / ca, but pin CLAUDE_CONFIG_DIR so the
-  # CLI uses ~/.claude-work (its own Keychain slot). Applies to zsh + fish.
-  home.shellAliases = {
-    cw = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
-    cwa = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
-  };
+    # All four subscription/OAuth launchers (DIRECT to Anthropic, never the gateway):
+    #   c / ca   — personal account (~/.claude, the default + canonical store).
+    #   cw / cwa — work account: same flags but pin CLAUDE_CONFIG_DIR to ~/.claude-work
+    #              (its own Keychain slot; auth derives from sha256(CLAUDE_CONFIG_DIR)).
+    # Applies to zsh + fish via home.shellAliases.
+    home.shellAliases = {
+      c = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+      ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
+      cw = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+      cwa = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
+    };
 
-  # The work .claude.json holds its own oauthAccount/userID, so it can't be symlinked.
-  # Propagate the shareable slices from the personal config (single source of truth) —
-  # mcpServers, per-project metadata (trust/allowedTools), and usage stats — while
-  # preserving work's identity, and stamp onboarding so `cw` → /login skips the wizard.
-  # One-way snapshot: work-side edits to these keys reset to personal's on each rebuild
-  # (personal is the daily driver). (Plain-command style matches codexCompletion.)
-  home.activation.claudeWorkConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    mkdir -p "$HOME/.claude-work"
-    src="$HOME/.claude.json"; dst="$HOME/.claude-work/.claude.json"
-    share='.mcpServers = ($p[0].mcpServers // {})
-      | .projects = ($p[0].projects // {})
-      | .skillUsage = ($p[0].skillUsage // {})
-      | .pluginUsage = ($p[0].pluginUsage // {})
-      | .tipsHistory = ($p[0].tipsHistory // {})
-      | .hasCompletedOnboarding = true'
-    if [ -f "$src" ]; then
-      if [ -f "$dst" ]; then
-        ${pkgs.jq}/bin/jq --slurpfile p "$src" "$share" \
-          "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
-      else
-        ${pkgs.jq}/bin/jq -n --slurpfile p "$src" "{} | $share" > "$dst"
+    # The work .claude.json holds its own oauthAccount/userID, so it can't be symlinked.
+    # Propagate the shareable slices from the personal config (single source of truth) —
+    # mcpServers, per-project metadata (trust/allowedTools), and usage stats — while
+    # preserving work's identity, and stamp onboarding so `cw` → /login skips the wizard.
+    # One-way snapshot: work-side edits to these keys reset to personal's on each rebuild
+    # (personal is the daily driver). (Plain-command style matches codexCompletion.)
+    home.activation.claudeWorkConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      mkdir -p "$HOME/.claude-work"
+      src="$HOME/.claude.json"; dst="$HOME/.claude-work/.claude.json"
+      share='.mcpServers = ($p[0].mcpServers // {})
+        | .projects = ($p[0].projects // {})
+        | .skillUsage = ($p[0].skillUsage // {})
+        | .pluginUsage = ($p[0].pluginUsage // {})
+        | .tipsHistory = ($p[0].tipsHistory // {})
+        | .hasCompletedOnboarding = true'
+      if [ -f "$src" ]; then
+        if [ -f "$dst" ]; then
+          ${pkgs.jq}/bin/jq --slurpfile p "$src" "$share" \
+            "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
+        else
+          ${pkgs.jq}/bin/jq -n --slurpfile p "$src" "{} | $share" > "$dst"
+        fi
       fi
-    fi
-  '';
+    '';
+  };
 }
