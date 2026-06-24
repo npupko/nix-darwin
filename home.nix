@@ -295,6 +295,10 @@ in
         bun = "latest";
         "npm:typescript" = "latest";
         "npm:typescript-language-server" = "latest";
+        # jsonls + html + cssls + eslint. Was nix (nvim-lsp.nix) but its build
+        # pins node 24, under which the json server crashes (ESM misdetection
+        # of jsonServerMain.js). Runs fine under mise's node "latest".
+        "npm:vscode-langservers-extracted" = "latest";
         "github:basecamp/fizzy-cli" = "latest";
 
         # AI CLI tools
@@ -968,6 +972,7 @@ in
       ".ripgreprc"
       "mise.local.toml"
       "*_cache*.json"
+      ".playwright-cli/"
     ];
     settings = {
       user = {
