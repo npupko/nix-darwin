@@ -102,8 +102,18 @@
                 "root"
                 username
               ];
-              # Allow mprocs to use pbcopy on macOS (for devenv)
-              extra-allowed-impure-host-deps = "/usr/bin/pbcopy";
+              # Allow mprocs to use pbcopy on macOS (for devenv).
+              # Determinate Nix 3.21 doesn't register an `extra-` variant for this
+              # setting (it warns "unknown setting"), so set the full list directly:
+              # the darwin defaults plus pbcopy. Keep the defaults in sync if they
+              # change — `nix config show allowed-impure-host-deps` prints the base set.
+              allowed-impure-host-deps = [
+                "/System/Library"
+                "/bin/sh"
+                "/dev"
+                "/usr/lib"
+                "/usr/bin/pbcopy"
+              ];
 
               # Build parallelism — tuned for M1 Max, 10 cores, 32GB RAM.
               # max-jobs=4 fits 4 concurrent heavy builds (Rust/LLVM/Haskell
