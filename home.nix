@@ -1311,6 +1311,7 @@ in
       "GEMINI_API_KEY"
       "CEREBRAS_API_KEY"
       "WAFER_API_KEY"
+      "GROQ_API_KEY"
 
       # AI routing & proxying
       "OPENROUTER_API_KEY"

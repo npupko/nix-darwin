@@ -109,6 +109,20 @@ let
       desc = "OpenAI gpt-oss-120b on Cerebras inference (cloud, very fast).";
     };
 
+    groq = {
+      # Groq Cloud direct: LiteLLM's native groq/ provider auto-targets
+      # https://api.groq.com/openai/v1 (OpenAI-compatible). gpt-oss-120b is Groq's
+      # top reasoning + tool-use model; the groq/ id prefixes the vendor path.
+      litellm = {
+        model = "groq/openai/gpt-oss-120b";
+        api_key = "os.environ/GROQ_API_KEY";
+      };
+      ctx = 131072; # 128K, Groq-hosted cap
+      caps = "tool_use,streaming";
+      label = "GPT-OSS 120B · Groq";
+      desc = "OpenAI gpt-oss-120b on Groq inference (cloud, very fast).";
+    };
+
     qwen = {
       # LAN llama-swap/llama.cpp box, OpenAI-compatible at /v1, no auth (LAN-only,
       # api_key a non-empty dummy). NEEDS the GPU box powered on — `cg qwen` only.
@@ -612,6 +626,7 @@ in
       export KIMI_API_KEY='${config.sops.placeholder.KIMI_API_KEY}'
       export XAI_API_KEY='${config.sops.placeholder.XAI_API_KEY}'
       export CEREBRAS_API_KEY='${config.sops.placeholder.CEREBRAS_API_KEY}'
+      export GROQ_API_KEY='${config.sops.placeholder.GROQ_API_KEY}'
       export OPENROUTER_API_KEY='${config.sops.placeholder.OPENROUTER_API_KEY}'
       export LITELLM_MASTER_KEY='${config.sops.placeholder.LITELLM_MASTER_KEY}'
     '';
