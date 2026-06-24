@@ -44,16 +44,6 @@ let
   # so it never touches the single LAN GPU. Adjust to taste.
   cheapFast = "openrouter/google/gemini-2.5-flash";
 
-  # Claude Code's adaptive/interleaved thinking attaches `thinking_blocks` to
-  # assistant turns and replays them on the next request. Cerebras's OpenAI-
-  # compatible API 400s on that field (LiteLLM forwards it; drop_params doesn't
-  # strip it), so models reached through it disable client-side thinking. Any
-  # server-side reasoning the model does (e.g. gpt-oss) is unaffected.
-  disableClientThinking = {
-    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = "1";
-    DISABLE_INTERLEAVED_THINKING = "1";
-  };
-
   # ── MODELS REGISTRY (single source of truth) ──────────────────────────────
   # Each model defined ONCE. Fields:
   #   litellm — the LiteLLM model_list entry (how the proxy reaches the backend).
@@ -104,7 +94,6 @@ let
       };
       ctx = 131072; # 128K, Cerebras-hosted cap
       caps = "tool_use,streaming";
-      extraEnv = disableClientThinking; # Cerebras 400s on replayed thinking_blocks
       label = "GLM 4.7 · Cerebras";
       desc = "Z.ai GLM-4.7 on Cerebras inference (cloud, very fast).";
     };
@@ -116,7 +105,6 @@ let
       };
       ctx = 131000; # Cerebras-hosted cap
       caps = "tool_use,streaming";
-      extraEnv = disableClientThinking; # Cerebras 400s on replayed thinking_blocks
       label = "GPT-OSS 120B · Cerebras";
       desc = "OpenAI gpt-oss-120b on Cerebras inference (cloud, very fast).";
     };
@@ -381,10 +369,7 @@ let
 
   # Every model is a trivial preset; named presets add multi-slot ones. A name in
   # BOTH is a build error (matches the repo's "bad name fails the build" ethos).
-  # A model's optional `extraEnv` (same field presets use) flows into its trivial
-  # preset — used to disable Claude Code thinking for OpenAI-translated backends
-  # that reject replayed thinking_blocks (see glm/gpt-oss).
-  modelPresets = lib.mapAttrs (n: m: { main = n; extraEnv = m.extraEnv or { }; }) models;
+  modelPresets = lib.mapAttrs (n: _: { main = n; }) models;
   collisions = lib.intersectLists (lib.attrNames models) (lib.attrNames presets);
   allPresets =
     assert lib.assertMsg (
@@ -428,6 +413,70 @@ let
     + lib.concatStrings (lib.mapAttrsToList (n: m: "  ${n}  —  ${m.label or n}\n") models)
     + "\nPassthrough:  cg openrouter/<vendor>/<model>   |   cg xai/<model>\n";
 
+  # ── Strip-thinking gateway hook ─────────────────────────────────────────────
+  # Claude Code (an Anthropic client) replays its assistant `thinking_blocks` on
+  # every follow-up turn. LiteLLM carries that field across to the upstream
+  # request, but OpenAI-format providers (Cerebras, the LAN openai/ box, …) reject
+  # the unknown property with a 400 — and `drop_params` only prunes top-level
+  # params, not message content. No Claude Code env nor LiteLLM setting suppresses
+  # this (verified: DISABLE_INTERLEAVED_THINKING only toggles the beta header;
+  # modify_params/drop_params/additional_drop_params don't touch message content) —
+  # so a LiteLLM async_pre_call_hook strips replayed reasoning from messages before
+  # the provider call, for ALL models EXCEPT the Anthropic-format ones (kimi), which
+  # REQUIRE the blocks. Thinking stays fully ON in Claude Code; the models still
+  # reason each turn (server-side), we just stop echoing prior thinking back to a
+  # backend that can't parse it. NOTE: LiteLLM resolves the `callbacks` module
+  # relative to the config FILE's directory, so the hook is co-located with the
+  # generated config.yaml in one store dir (litellmConfigDir below).
+  keepThinkingModels = lib.concatStringsSep "," (
+    lib.attrNames (
+      lib.filterAttrs (_: m: m ? litellm && lib.hasPrefix "anthropic/" m.litellm.model) models
+    )
+  );
+  stripHookPy = pkgs.writeText "strip_thinking.py" ''
+    import os
+    from litellm.integrations.custom_logger import CustomLogger
+
+    # Anthropic-format models REQUIRE client-replayed thinking blocks (their API
+    # rejects an assistant turn that omits them when thinking is enabled). Every
+    # other backend is OpenAI-format and rejects the `thinking_blocks` field LiteLLM
+    # carries over from the Anthropic request — so we strip replayed reasoning for
+    # ALL models EXCEPT these. (Stripping is a safe no-op when no such blocks exist.)
+    KEEP_MODELS = {
+        m.strip() for m in os.environ.get("KEEP_THINKING_MODELS", "").split(",") if m.strip()
+    }
+
+    _THINKING_BLOCK_TYPES = {"thinking", "redacted_thinking"}
+
+
+    def _scrub(msg):
+        if not isinstance(msg, dict):
+            return
+        # OpenAI-format reasoning artifacts LiteLLM attaches to assistant messages.
+        msg.pop("thinking_blocks", None)
+        msg.pop("reasoning_content", None)
+        # Anthropic-format content blocks (if the hook sees pre-translation data).
+        content = msg.get("content")
+        if isinstance(content, list):
+            msg["content"] = [
+                b
+                for b in content
+                if not (isinstance(b, dict) and b.get("type") in _THINKING_BLOCK_TYPES)
+            ]
+
+
+    class StripThinkingHandler(CustomLogger):
+        async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+            model = (data or {}).get("model")
+            if model not in KEEP_MODELS:
+                for m in data.get("messages") or []:
+                    _scrub(m)
+            return data
+
+
+    proxy_handler_instance = StripThinkingHandler()
+  '';
+
   # ── LiteLLM config.yaml (pure store file; os.environ/ placeholders ONLY) ────
   configData = {
     model_list =
@@ -450,9 +499,18 @@ let
     };
     litellm_settings = {
       drop_params = true; # tolerate provider param mismatches; NO fallbacks → fail-fast (Q7)
+      callbacks = "strip_thinking.proxy_handler_instance"; # strip replayed thinking_blocks
     };
   };
   configFile = (pkgs.formats.yaml { }).generate "litellm-config.yaml" configData;
+  # Co-locate config + hook so LiteLLM's config-dir-relative `callbacks` import
+  # resolves `strip_thinking` (the proxy wrapper rewrites PYTHONPATH, so relying on
+  # it does not work — see the hook comment above).
+  litellmConfigDir = pkgs.runCommandLocal "litellm-config-dir" { } ''
+    mkdir -p "$out"
+    cp ${configFile} "$out/litellm-config.yaml"
+    cp ${stripHookPy} "$out/strip_thinking.py"
+  '';
 
   # ── Start wrapper: source the sops env, then exec litellm ───────────────────
   litellmEnv = config.sops.templates."litellm.env".path;
@@ -460,7 +518,10 @@ let
     set -a
     . ${litellmEnv}
     set +a
-    exec ${lib.getExe pkgs.litellm} --config ${configFile} --host ${host} --port ${toString port}
+    # KEEP list names the Anthropic-format models whose thinking_blocks must NOT be
+    # stripped (read by strip_thinking.py at import).
+    export KEEP_THINKING_MODELS=${lib.escapeShellArg keepThinkingModels}
+    exec ${lib.getExe pkgs.litellm} --config ${litellmConfigDir}/litellm-config.yaml --host ${host} --port ${toString port}
   '';
 
   # ── cg dispatcher ───────────────────────────────────────────────────────────
