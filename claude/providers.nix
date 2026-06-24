@@ -19,10 +19,11 @@
 # no ANTHROPIC_API_KEY in secrets. Those stay DIRECT to Anthropic (accounts.nix).
 # This module only fronts API-key alt-providers + the LAN Qwen box.
 #
-# Lifecycle is manual (Q1): a dormant launchd agent (RunAtLoad=false,
-# KeepAlive=false) driven by `litellm-up`/`-down`/`-status` — `brew services` in
-# Nix idiom, surviving terminal close. So after a reboot the proxy stays down until
-# `litellm-up`; a Claude Code "ConnectionRefused" means the daemon isn't running.
+# Lifecycle: the launchd agent starts at login by default (RunAtLoad=true) and is
+# driven by `litellm-up`/`-down`/`-status` — `brew services` in Nix idiom,
+# surviving terminal close. KeepAlive=false, so a manual `litellm-down` stays down
+# until the next login or `litellm-up` (no auto-restart). A Claude Code
+# "ConnectionRefused" means you ran `litellm-down` (or it crashed) — `litellm-up`.
 {
   config,
   lib,
@@ -42,6 +43,16 @@ let
   # slot (titles, summaries, compaction) defaults to — routed through openrouter/*
   # so it never touches the single LAN GPU. Adjust to taste.
   cheapFast = "openrouter/google/gemini-2.5-flash";
+
+  # Claude Code's adaptive/interleaved thinking attaches `thinking_blocks` to
+  # assistant turns and replays them on the next request. Cerebras's OpenAI-
+  # compatible API 400s on that field (LiteLLM forwards it; drop_params doesn't
+  # strip it), so models reached through it disable client-side thinking. Any
+  # server-side reasoning the model does (e.g. gpt-oss) is unaffected.
+  disableClientThinking = {
+    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = "1";
+    DISABLE_INTERLEAVED_THINKING = "1";
+  };
 
   # ── MODELS REGISTRY (single source of truth) ──────────────────────────────
   # Each model defined ONCE. Fields:
@@ -82,6 +93,32 @@ let
       caps = "tool_use,streaming";
       label = "Grok Code Fast · xAI";
       desc = "xAI grok-code-fast-1 via api.x.ai directly (cloud).";
+    };
+
+    glm = {
+      # Cerebras direct: LiteLLM's native cerebras/ provider auto-targets
+      # https://api.cerebras.ai/v1 (OpenAI-compatible).
+      litellm = {
+        model = "cerebras/zai-glm-4.7";
+        api_key = "os.environ/CEREBRAS_API_KEY";
+      };
+      ctx = 131072; # 128K, Cerebras-hosted cap
+      caps = "tool_use,streaming";
+      extraEnv = disableClientThinking; # Cerebras 400s on replayed thinking_blocks
+      label = "GLM 4.7 · Cerebras";
+      desc = "Z.ai GLM-4.7 on Cerebras inference (cloud, very fast).";
+    };
+
+    gpt-oss = {
+      litellm = {
+        model = "cerebras/gpt-oss-120b";
+        api_key = "os.environ/CEREBRAS_API_KEY";
+      };
+      ctx = 131000; # Cerebras-hosted cap
+      caps = "tool_use,streaming";
+      extraEnv = disableClientThinking; # Cerebras 400s on replayed thinking_blocks
+      label = "GPT-OSS 120B · Cerebras";
+      desc = "OpenAI gpt-oss-120b on Cerebras inference (cloud, very fast).";
     };
 
     qwen = {
@@ -137,8 +174,12 @@ let
   #                                      knobs; irrelevant to our base-URL approach.
   #
   # MAIN / TIER MODELS — the slots presets drive
-  #   ANTHROPIC_MODEL                    [used] main model: a gateway model_name, or
-  #                                      "opusplan" for the plan-vs-execute model split.
+  #   ANTHROPIC_MODEL                    [used] the active model. `cg` sets this to an
+  #                                      alias tier name (default "sonnet", via a
+  #                                      preset's `primary`) so /model selects a named
+  #                                      slot rather than inventing a "Custom model"
+  #                                      entry. May also be a raw gateway model_name or
+  #                                      "opusplan" (plan-vs-execute split).
   #   ANTHROPIC_SMALL_FAST_MODEL         [used] background work: titles, summaries,
   #                                      auto-compaction (our `background` slot).
   #   ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU,FABLE}_MODEL  [used] what each /model alias
@@ -206,7 +247,12 @@ let
   # A preset assigns models to slots and may set knobs. Slot/knob fields (all
   # optional except `main`):
   #   main       model alias (or a raw passthrough string, or "opusplan" if you
-  #              really want it) → ANTHROPIC_MODEL.            [required]
+  #              really want it) → fills the tiers; becomes the ACTIVE model via
+  #              `primary`.                                    [required]
+  #   primary    which alias tier ANTHROPIC_MODEL selects: opus|sonnet|haiku|fable.
+  #              The active model is whatever that tier holds (default = `main`),
+  #              shown as a named slot in /model — not a "Custom model" entry.
+  #              [default: "sonnet"]
   #   opus/sonnet/haiku/fable  model alias → that /model tier. [default: main]
   #   background model alias    → ANTHROPIC_SMALL_FAST_MODEL.  [default: cheapFast]
   #   subagent   model alias or "inherit" → CLAUDE_CODE_SUBAGENT_MODEL. [default: inherit]
@@ -298,8 +344,17 @@ let
       flagsList = p.flags or [ "--dangerously-skip-permissions" ];
       autoMode = p.autoMode or false;
       extraEnv = p.extraEnv or { };
+      # ANTHROPIC_MODEL points at the alias TIER that holds `main` (default
+      # "sonnet"), not the raw model id — otherwise Claude Code shows the active
+      # model as a separate "Custom model" entry instead of selecting the named
+      # slot. Routing is identical (the alias resolves to `main`'s model). When
+      # `main` is not a registry model (a raw passthrough or "opusplan") it goes
+      # in verbatim.
+      primary = p.primary or "sonnet";
+      mainIsModel = models ? ${mainRef};
+      anthropicModel = if mainIsModel then primary else (resolveModel mainRef).id;
     in
-    "export ANTHROPIC_MODEL=${lib.escapeShellArg (resolveModel mainRef).id}\n"
+    "export ANTHROPIC_MODEL=${lib.escapeShellArg anthropicModel}\n"
     + tierExports "opus" (p.opus or mainRef)
     + tierExports "sonnet" (p.sonnet or mainRef)
     + tierExports "haiku" (p.haiku or mainRef)
@@ -326,7 +381,10 @@ let
 
   # Every model is a trivial preset; named presets add multi-slot ones. A name in
   # BOTH is a build error (matches the repo's "bad name fails the build" ethos).
-  modelPresets = lib.mapAttrs (n: _: { main = n; }) models;
+  # A model's optional `extraEnv` (same field presets use) flows into its trivial
+  # preset — used to disable Claude Code thinking for OpenAI-translated backends
+  # that reject replayed thinking_blocks (see glm/gpt-oss).
+  modelPresets = lib.mapAttrs (n: m: { main = n; extraEnv = m.extraEnv or { }; }) models;
   collisions = lib.intersectLists (lib.attrNames models) (lib.attrNames presets);
   allPresets =
     assert lib.assertMsg (
@@ -427,7 +485,9 @@ let
       case "$target" in
       ${presetArms}  */*)
           # passthrough: a raw gateway model name (openrouter/…, xai/…). No metadata.
-          export ANTHROPIC_MODEL="$target"
+          # ANTHROPIC_MODEL=sonnet (the alias holding it) so it selects the Sonnet
+          # slot instead of appearing as a "Custom model" entry.
+          export ANTHROPIC_MODEL=sonnet
           export ANTHROPIC_DEFAULT_OPUS_MODEL="$target"
           export ANTHROPIC_DEFAULT_SONNET_MODEL="$target"
           export ANTHROPIC_DEFAULT_HAIKU_MODEL="$target"
@@ -490,6 +550,7 @@ in
     sops.templates."litellm.env".content = ''
       export KIMI_API_KEY='${config.sops.placeholder.KIMI_API_KEY}'
       export XAI_API_KEY='${config.sops.placeholder.XAI_API_KEY}'
+      export CEREBRAS_API_KEY='${config.sops.placeholder.CEREBRAS_API_KEY}'
       export OPENROUTER_API_KEY='${config.sops.placeholder.OPENROUTER_API_KEY}'
       export LITELLM_MASTER_KEY='${config.sops.placeholder.LITELLM_MASTER_KEY}'
     '';
@@ -502,13 +563,15 @@ in
       litellmStatus
     ];
 
-    # 3) Dormant launchd agent (manual control via litellm-up/-down).
+    # 3) launchd agent — starts at login by default; manual control via
+    #    litellm-up/-down. KeepAlive stays false so a `litellm-down` stays down
+    #    until the next login or `litellm-up` (no auto-restart fighting you).
     launchd.agents.litellm = {
       enable = true;
       config = {
         ProgramArguments = [ "${startScript}" ];
-        RunAtLoad = false; # never auto-start (only useful when the GPU box is on)
-        KeepAlive = false; # a manual `litellm-down` stays down
+        RunAtLoad = true; # start at login/agent-load (default-on)
+        KeepAlive = false; # a manual `litellm-down` stays down (no auto-restart)
         ProcessType = "Background";
         StandardOutPath = "${homeDir}/Library/Logs/litellm.log";
         StandardErrorPath = "${homeDir}/Library/Logs/litellm.log";
