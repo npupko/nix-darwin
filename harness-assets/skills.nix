@@ -43,7 +43,6 @@
       process-book = { };
       prototype = { };
       solidtime-pi5 = { }; # self-hosted Solidtime operator; useful on pi + Codex + Claude
-      stop-slop = { };
       system-design = { };
       tdd = { };
       to-my-style = { };
