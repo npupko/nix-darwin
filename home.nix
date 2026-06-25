@@ -1321,6 +1321,7 @@ in
       "REQUESTY_API_KEY"
       "WANDB_API_KEY"
       "KIMI_API_KEY"
+      "CLOUDFLARE_WORKERS_AI_API_KEY"
 
       # Search & research
       "TAVILY_API_KEY"

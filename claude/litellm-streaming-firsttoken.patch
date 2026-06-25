@@ -1,0 +1,31 @@
+--- a/litellm/llms/anthropic/experimental_pass_through/adapters/streaming_iterator.py	2026-06-25 19:29:19
++++ b/litellm/llms/anthropic/experimental_pass_through/adapters/streaming_iterator.py	2026-06-25 19:29:19
+@@ -402,8 +402,11 @@
+                     if (
+                         processed_chunk.get("type") == "content_block_delta"
+                         and isinstance(processed_chunk.get("delta"), dict)
+-                        and processed_chunk["delta"].get("type") == "input_json_delta"
+-                        and processed_chunk["delta"].get("partial_json")
++                        and (
++                        processed_chunk["delta"].get("partial_json")
++                        or processed_chunk["delta"].get("text")
++                        or processed_chunk["delta"].get("thinking")
++                    )
+                     ):
+                         self.chunk_queue.append(processed_chunk)
+ 
+@@ -642,9 +645,11 @@
+                         if (
+                             processed_chunk.get("type") == "content_block_delta"
+                             and isinstance(processed_chunk.get("delta"), dict)
+-                            and processed_chunk["delta"].get("type")
+-                            == "input_json_delta"
+-                            and processed_chunk["delta"].get("partial_json")
++                            and (
++                        processed_chunk["delta"].get("partial_json")
++                        or processed_chunk["delta"].get("text")
++                        or processed_chunk["delta"].get("thinking")
++                    )
+                         ):
+                             self.chunk_queue.append(processed_chunk)
+ 
