@@ -81,4 +81,20 @@
       doCheck = false;
     });
   })
+
+  # mise: nixpkgs only skips the OCI setuid-bit test on isLinux (the
+  # lib.optionals isLinux guard in pkgs/by-name/mi/mise/package.nix, comment:
+  # "Nix's Linux sandbox rejects setting setuid bits"), but the darwin sandbox
+  # strips setuid bits too, so the test fails identically when mise builds from
+  # source. It slips through upstream CI because Hydra's darwin builders
+  # preserve the bit. master still lacks the darwin guard (checked 2026-06-29).
+  # Append the same skip on darwin.
+  # Drop when nixpkgs extends that lib.optionals guard to darwin.
+  (final: prev: {
+    mise = prev.mise.overrideAttrs (old: {
+      checkFlags = (old.checkFlags or [ ]) ++ [
+        "--skip=oci::layer::tests::preserve_metadata_dir_layer_keeps_special_permission_bits"
+      ];
+    });
+  })
 ]
