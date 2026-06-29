@@ -40,16 +40,35 @@
     });
   })
 
-  # ffmpeg-python checkPhase invokes `ffmpeg -version`; macOS Tahoe sandbox
-  # kills the ad-hoc-signed nix-store binary with SIGKILL. Disable tests —
-  # transitive dep of gftools → jetbrains-mono → fonts.
-  # Drop when nixpkgs marks the test broken on darwin or the sandbox/codesign
-  # interaction is fixed upstream.
+  # python313 package-set fixups for the gftools → jetbrains-mono → fonts tree.
+  # Overriding the set busts the binary cache for every package in it, so these
+  # all build (and run their checkPhase) locally rather than coming from
+  # cache.nixos.org.
+  #
+  # Keep ALL python313 overrides in this single packageOverrides block: a second
+  # `prev.python313.override { packageOverrides = ... }` overlay would replace
+  # this argument rather than merge, silently dropping the other fixups.
   (final: prev: {
     python313 = prev.python313.override {
       packageOverrides = pyfinal: pyprev: {
+        # ffmpeg-python checkPhase invokes `ffmpeg -version`; macOS Tahoe
+        # sandbox kills the ad-hoc-signed nix-store binary with SIGKILL.
+        # Drop when nixpkgs marks the test broken on darwin or the
+        # sandbox/codesign interaction is fixed upstream.
         ffmpeg-python = pyprev.ffmpeg-python.overridePythonAttrs (_: {
           doCheck = false;
+        });
+
+        # afdko's addfeatures had an unsigned-integer underflow in hmtx.cpp
+        # (`for (i = size()-2; i >= 0; i--)` with size_t i) that traps with
+        # SIGTRAP on darwin → 93 checkPhase failures, breaking the whole font
+        # tree. Vendor the upstream fix verbatim (= what nixpkgs master does).
+        #   nixpkgs PR:  NixOS/nixpkgs#535882 (merged to master 2026-06-28)
+        #   upstream PR: adobe-type-tools/afdko#1843
+        # Drop this entry AND ./afdko-hmtx-underflow.patch once nixos-unstable
+        # advances past nixpkgs commit 313fd7489e8 (`nix flake update nixpkgs`).
+        afdko = pyprev.afdko.overridePythonAttrs (old: {
+          patches = (old.patches or [ ]) ++ [ ./afdko-hmtx-underflow.patch ];
         });
       };
     };
