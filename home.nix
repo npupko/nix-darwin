@@ -122,6 +122,7 @@ in
     # aichat
     # argc
     # tabby # broken: metrics-0.22.3 fails with newer rustc (rust-lang/rust#141402)
+    poppler-utils # Needed for Claude Code PDF to work
 
     # System utilities
     gnupg
