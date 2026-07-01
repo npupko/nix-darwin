@@ -97,6 +97,9 @@
       test-stand = {
         to = [ "claude" ];
       };
+      poka-yoke = {
+        to = [ "claude" ]; # mistake-proofing build mode; disable-model-invocation + model: + Agent verifier
+      };
 
       retro = {
         to = [ "claude" ]; # AskUserQuestion + Claude transcript mining; meaningless on pi/Codex
