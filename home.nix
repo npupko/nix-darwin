@@ -216,6 +216,16 @@ in
     XDG_CACHE_HOME = "/Users/${username}/.cache";
     XDG_DATA_HOME = "/Users/${username}/.local/share";
     XDG_STATE_HOME = "/Users/${username}/.local/state";
+
+    # gogcli file-keyring password — PATH ONLY (store-safe; the value stays
+    # sops-encrypted at rest). gog needs GOG_KEYRING_PASSWORD in non-interactive
+    # shells (agents/CI have no TTY to prompt), but the harness runs *bash* and
+    # sources no rc file, so the interactive sops template never fires there.
+    # Exporting the raw secret globally would violate least-privilege (inherited
+    # by every child, readable via /proc). Instead we publish only the file path;
+    # consumers (e.g. morning-review's mail-cal.sh) read it into the env var on
+    # demand, so the secret materializes solely in gog's own process.
+    GOG_KEYRING_PASSWORD_FILE = config.sops.secrets.GOG_KEYRING_PASSWORD.path;
   };
 
   # PATH additions
@@ -1355,6 +1365,11 @@ in
       "PROXY_PASS"
 
       "SOLIDTIME_PI5_API_KEY"
+
+      # gogcli (Gmail/Calendar) file-keyring password — AES key for the
+      # encrypted refresh-token file, so gog never touches the macOS keychain
+      # (adhoc-signed Homebrew binary re-prompts on every call; see gogcli #569).
+      "GOG_KEYRING_PASSWORD"
     ] (_: { });
   };
 
