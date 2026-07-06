@@ -27,19 +27,6 @@
     }).bitwarden-desktop;
   })
 
-  # zsh sigsuspend probe fails under autoconf 2.73 / clang gnu23 on macOS
-  # Tahoe → falls back to racy pause() path → command substitutions hang
-  # forever (visible as "tmux pane stuck with no prompt").
-  # Tracking: NixOS/nixpkgs#513543. Master fix 19b2d2ac (2026-04-27).
-  # Drop after backport lands on nixpkgs-25.11-darwin.
-  (final: prev: {
-    zsh = prev.zsh.overrideAttrs (old: {
-      preConfigure = (old.preConfigure or "") + ''
-        export zsh_cv_sys_sigsuspend=yes
-      '';
-    });
-  })
-
   # python313 package-set fixups for the gftools → jetbrains-mono → fonts tree.
   # Overriding the set busts the binary cache for every package in it, so these
   # all build (and run their checkPhase) locally rather than coming from
@@ -58,18 +45,6 @@
         ffmpeg-python = pyprev.ffmpeg-python.overridePythonAttrs (_: {
           doCheck = false;
         });
-
-        # afdko's addfeatures had an unsigned-integer underflow in hmtx.cpp
-        # (`for (i = size()-2; i >= 0; i--)` with size_t i) that traps with
-        # SIGTRAP on darwin → 93 checkPhase failures, breaking the whole font
-        # tree. Vendor the upstream fix verbatim (= what nixpkgs master does).
-        #   nixpkgs PR:  NixOS/nixpkgs#535882 (merged to master 2026-06-28)
-        #   upstream PR: adobe-type-tools/afdko#1843
-        # Drop this entry AND ./afdko-hmtx-underflow.patch once nixos-unstable
-        # advances past nixpkgs commit 313fd7489e8 (`nix flake update nixpkgs`).
-        afdko = pyprev.afdko.overridePythonAttrs (old: {
-          patches = (old.patches or [ ]) ++ [ ./afdko-hmtx-underflow.patch ];
-        });
       };
     };
   })
@@ -82,19 +57,46 @@
     });
   })
 
-  # mise: nixpkgs only skips the OCI setuid-bit test on isLinux (the
-  # lib.optionals isLinux guard in pkgs/by-name/mi/mise/package.nix, comment:
-  # "Nix's Linux sandbox rejects setting setuid bits"), but the darwin sandbox
-  # strips setuid bits too, so the test fails identically when mise builds from
-  # source. It slips through upstream CI because Hydra's darwin builders
-  # preserve the bit. master still lacks the darwin guard (checked 2026-06-29).
-  # Append the same skip on darwin.
-  # Drop when nixpkgs extends that lib.optionals guard to darwin.
-  (final: prev: {
-    mise = prev.mise.overrideAttrs (old: {
-      checkFlags = (old.checkFlags or [ ]) ++ [
-        "--skip=oci::layer::tests::preserve_metadata_dir_layer_keeps_special_permission_bits"
-      ];
-    });
-  })
+  # mise: install the official prebuilt release binary instead of compiling the
+  # Rust source. nixpkgs' mise (and mise's own flake) build from source, and
+  # aarch64-darwin mise is NOT in any binary cache (cache.nixos.org / nix-community
+  # / FlakeHub all miss it), so a plain `pkgs.mise` means a multi-minute Rust
+  # compile on every nixpkgs bump — and the darwin source build additionally fails
+  # the OCI setuid test. This is the exact artifact `mise.run` / GitHub releases
+  # ship: no compile, no cache dependency. Pinned to aarch64-darwin (this host).
+  #
+  # Updating is manual (mise self-update can't touch a read-only /nix/store
+  # binary). Bump `miseVersion`, then get the new hash with:
+  #   nix store prefetch-file --json \
+  #     "https://github.com/jdx/mise/releases/download/vNEW/mise-vNEW-macos-arm64.tar.gz" \
+  #     | jq -r .hash
+  #
+  # Removal: drop this overlay once aarch64-darwin mise is reliably cached and the
+  # compile stops hurting.
+  (final: prev:
+    let
+      miseVersion = "2026.7.0";
+      miseHash = "sha256-I+/hgEbRK5WJXReyvwEBoO+5vxdHZ8V7biyNAZuWQlI=";
+    in
+    {
+      mise = prev.stdenvNoCC.mkDerivation {
+        pname = "mise";
+        version = miseVersion;
+        src = prev.fetchurl {
+          url = "https://github.com/jdx/mise/releases/download/v${miseVersion}/mise-v${miseVersion}-macos-arm64.tar.gz";
+          hash = miseHash;
+        };
+        # Prebuilt Mach-O binary — nothing to configure or build. The tarball
+        # unpacks to a single `mise/` dir (auto-detected sourceRoot).
+        dontConfigure = true;
+        dontBuild = true;
+        installPhase = ''
+          runHook preInstall
+          mkdir -p $out
+          cp -R bin man share $out/
+          runHook postInstall
+        '';
+        meta = prev.mise.meta // { mainProgram = "mise"; };
+      };
+    })
 ]
