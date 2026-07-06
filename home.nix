@@ -251,7 +251,6 @@ in
     ds = "SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt sops /etc/nix-darwin/secrets.yaml";
     chrome_debug = "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug --no-first-run --no-default-browser-check";
     ghostty = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
-    fix-ssh = "launchctl kickstart -k gui/$(id -u)/org.nix-community.home.ssh-agent";
     grep = "ug -G";
     find = "bfs";
     cx = "opencode";
@@ -1252,10 +1251,16 @@ in
     silent = true;
   };
 
-  # SSH agent (auto-start via launchd on macOS)
-  services.ssh-agent = {
-    enable = true;
-  };
+  # SSH agent: use the native macOS ssh-agent (com.openssh.ssh-agent, started at
+  # login, sets SSH_AUTH_SOCK) rather than a second home-manager-managed agent.
+  # Rationale: macOS ships its own agent, and only the SYSTEM /usr/bin/ssh +
+  # ssh-add honor the Keychain (`UseKeychain`, --apple-use-keychain) — nixpkgs'
+  # mainline OpenSSH does not. So `programs.ssh.settings."*".UseKeychain` below +
+  # the native agent is the Keychain-integrated, macOS-idiomatic setup; running
+  # `services.ssh-agent` (nix openssh) was redundant and forfeited Keychain, plus
+  # caused launchd bootstrap/reload friction on every generation bump.
+  # First-time per key: `/usr/bin/ssh-add --apple-use-keychain ~/.ssh/<key>`
+  # (or just `ssh` once and enter the passphrase — AddKeysToAgent stores it).
 
   # SSH client configuration
   programs.ssh = {
