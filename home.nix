@@ -881,10 +881,10 @@ in
       "--layout=reverse"
       "--border"
     ];
-    fileWidgetCommand = "fd --type f --hidden --follow --exclude .git";
-    fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
-    changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
-    changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
+    fileWidget.command = "fd --type f --hidden --follow --exclude .git";
+    fileWidget.options = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
+    changeDirWidget.command = "fd --type d --hidden --follow --exclude .git";
+    changeDirWidget.options = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
   };
 
   # Fd (modern find)
