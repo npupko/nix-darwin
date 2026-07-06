@@ -26,7 +26,22 @@
     nixpkgs-bitwarden.url = "github:NixOS/nixpkgs/daf6dc47aa4b44791372d6139ab7b25269184d55";
 
     nix-darwin = {
-      url = "github:nix-darwin/nix-darwin/master";
+      # TEMPORARY: pointed at the PR #1819 fork branch, NOT upstream master.
+      # Current nixpkgs' nixos-render-docs removed `--toc-depth`, but nix-darwin
+      # master's manual builder (doc/manual/default.nix) still passes it, so
+      # darwin-manual-html (and the darwin-uninstaller's nested system) hard-fails
+      # on any rebuild. PR #1819 switches `--toc-depth`/`--chunk-toc-depth` ->
+      # `--sidebar-depth`, which fixes both. It was open + mergeable but not merged
+      # as of 2026-07-06, so we ride the branch to stay buildable while keeping
+      # nixpkgs fresh (no pin-back, no local patch).
+      # Pinned to the exact commit (not the branch) so a blanket `nix flake update`
+      # can't pull a force-pushed change; verified diff vs upstream master = this
+      # single one-line change and nothing else (ahead_by=1, one file, GPG-signed).
+      # REVERT once #1819 merges: set url back to `github:nix-darwin/nix-darwin/master`
+      # (or the merge commit) and `nix flake lock`.
+      #   https://github.com/nix-darwin/nix-darwin/pull/1819
+      #   https://github.com/nix-darwin/nix-darwin/issues/1817
+      url = "github:p42software/nix-darwin/ebaac1f1e5cbb10ea5e9815bb1f69e53164f8b9b";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
