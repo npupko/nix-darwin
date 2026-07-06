@@ -104,6 +104,10 @@
       retro = {
         to = [ "claude" ]; # AskUserQuestion + Claude transcript mining; meaningless on pi/Codex
       };
+
+      parallel-deep-research = {
+        to = [ "claude" ]; # parallel-cli deep research; user-invocable + allowed-tools, Claude-only
+      };
     };
   };
 }
