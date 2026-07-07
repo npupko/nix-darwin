@@ -1229,8 +1229,14 @@ in
       set -g status-right "#{E:@voxtype} #[fg=${theme.tmux.accent}]#{?pane_in_mode,COPY ,}#{?client_prefix,PREFIX ,}#{?window_zoomed_flag,ZOOM ,}#[fg=brightblack]#h "
       set -g pane-border-style "fg=brightblack"
       set -g pane-active-border-style "fg=${theme.tmux.accent}"
-      set -g message-style "bg=default,fg=${theme.tmux.accent}"
-      set -g message-command-style "bg=default,fg=${theme.tmux.accent}"
+      # `fill=` paints the WHOLE status bar while the command-prompt (e.g. Ctrl+A r
+      # rename-window) is open. tmux 3.7 made this load-bearing: without a fill it only
+      # draws the prompt's own cells and the previously-rendered window list bleeds
+      # through to the right (3.6a cleared the row unconditionally). `fill=terminal`
+      # paints opaquely with the terminal's own bg, so the row is wiped while keeping
+      # the transparent look — note fill=default is transparent and does NOT wipe.
+      set -g message-style "bg=terminal,fg=${theme.tmux.accent},fill=terminal"
+      set -g message-command-style "bg=terminal,fg=${theme.tmux.accent},fill=terminal"
       set -g mode-style "bg=${theme.tmux.accent},fg=black"
       # set -g extended-keys on
       set -s extended-keys on
