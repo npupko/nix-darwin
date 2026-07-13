@@ -180,9 +180,10 @@
       "ollama"
       "glow"
       "gogcli"
+      "gitleaks"
     ];
     casks = [
-      "ghostty@tip"
+      "ghostty"
       "docker-desktop"
       # "orbstack"
       "tailscale-app"
