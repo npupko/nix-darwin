@@ -40,6 +40,7 @@
       humanize = { };
       image-gen = { };
       mise-bootstrap = { };
+      okf = { }; # author/validate/consume Open Knowledge Format bundles; cross-harness
       process-book = { };
       prototype = { };
       solidtime-pi5 = { }; # self-hosted Solidtime operator; useful on pi + Codex + Claude
@@ -103,6 +104,10 @@
 
       retro = {
         to = [ "claude" ]; # AskUserQuestion + Claude transcript mining; meaningless on pi/Codex
+      };
+
+      prune-comments = {
+        to = [ "claude" ]; # manual /prune-comments only; allowed-tools + disable-model-invocation
       };
 
       parallel-deep-research = {
