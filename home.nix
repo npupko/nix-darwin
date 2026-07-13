@@ -1312,13 +1312,21 @@ in
     # current values contain no single quotes). Used by zsh/bash.
     templates."api-keys.env".content = lib.concatMapStrings (name: ''
       export ${name}='${config.sops.placeholder.${name}}'
-    '') (lib.attrNames config.sops.secrets);
+    '') (lib.attrNames config.sops.secrets) + ''
+      # wrangler only reads CLOUDFLARE_API_TOKEN (+ CLOUDFLARE_ACCOUNT_ID, not
+      # secret) — alias the Pages deploy key so `wrangler login` is never needed.
+      export CLOUDFLARE_API_TOKEN='${config.sops.placeholder.CLOUDFLARE_PAGES_API_KEY}'
+      export CLOUDFLARE_ACCOUNT_ID='0e9bd7514f96c40b78dd0719b2d609b4'
+    '';
 
     # Same secrets, fish syntax — fish cannot source the bash-style file above.
     # Sourced from programs.fish.interactiveShellInit. Same single-quote safety.
     templates."api-keys.fish".content = lib.concatMapStrings (name: ''
       set -gx ${name} '${config.sops.placeholder.${name}}'
-    '') (lib.attrNames config.sops.secrets);
+    '') (lib.attrNames config.sops.secrets) + ''
+      set -gx CLOUDFLARE_API_TOKEN '${config.sops.placeholder.CLOUDFLARE_PAGES_API_KEY}'
+      set -gx CLOUDFLARE_ACCOUNT_ID '0e9bd7514f96c40b78dd0719b2d609b4'
+    '';
 
     # Individual secrets - each becomes a file
     secrets = lib.genAttrs [
@@ -1344,6 +1352,8 @@ in
       "WANDB_API_KEY"
       "KIMI_API_KEY"
       "CLOUDFLARE_WORKERS_AI_API_KEY"
+      "CLOUDFLARE_PAGES_API_KEY"
+
 
       # Search & research
       "TAVILY_API_KEY"
