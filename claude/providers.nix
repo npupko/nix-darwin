@@ -18,7 +18,7 @@
 #   cg lan        → the LAN GPU box (Qwen3.6-27B). HARD-FAILS if the box is off
 #                   (no silent cloud fallback).
 #   cg <provider> → an interactive fzf picker of that provider's LIVE catalog
-#                   (cerebras|groq|cloudflare|openrouter|xai), with a real quota
+#                   (cerebras|groq|cloudflare|openrouter|xai|openai), with a real quota
 #                   gauge where the provider exposes rate-limit headers.
 #   cg <provider>/<model>  → direct passthrough to any model the provider lists
 #                   (drift-proof, via per-provider wildcards). No metadata.
@@ -28,7 +28,13 @@
 # Boundary (do NOT cross): the subscription launchers `c`/`ca`/`cw`/`cwa` use
 # Anthropic OAuth, which LiteLLM cannot pass through (litellm#13380), and there is
 # no ANTHROPIC_API_KEY in secrets. Those stay DIRECT to Anthropic (accounts.nix).
-# This module only fronts API-key alt-providers + the LAN Qwen box.
+# This module only fronts API-key alt-providers + the LAN Qwen box — WITH ONE
+# deliberate exception: `codex-sub` reuses the ChatGPT/Codex subscription (a
+# DIFFERENT vendor's subscription, which LiteLLM CAN front via its native
+# `chatgpt/` OAuth-device-flow provider — litellm#13380 is Anthropic-specific).
+# It is UNOFFICIAL (an undocumented backend, ToS compliance unconfirmed by
+# OpenAI — see the model's own comment below) — opted into knowingly, not a
+# precedent for loosening the Anthropic boundary above.
 #
 # Lifecycle: the launchd agent starts at login by default (RunAtLoad=true) and is
 # driven by `litellm-up`/`-down`/`-status` — `brew services` in Nix idiom,
@@ -49,6 +55,12 @@ let
   port = 4000;
   label = "org.nix-community.home.litellm"; # home-manager launchd agent label
   svc = "gui/$(id -u)/${label}"; # launchctl service target ($(id -u) is shell-eval)
+
+  # Persistent (non-store) home for the ChatGPT/Codex subscription OAuth token
+  # (`codex-sub` below). MUST survive rebuilds/GC — a nix store path would not.
+  # Shared by the daemon (startScript) and the one-time interactive login
+  # helper (chatgptSubscriptionLogin) so both read/write the same auth.json.
+  chatgptTokenDir = "${homeDir}/.local/state/litellm-chatgpt";
 
   # cheapFast: the cheap always-available CLOUD model every preset's `background`
   # slot (titles, summaries, compaction) defaults to — routed through openrouter/*
@@ -216,6 +228,32 @@ let
       desc = "1M-context backstop; heavily rate-limited — last resort only.";
     };
 
+    # ── xAI (paid, direct — NOT part of the free chain) ────────────────────────
+    # Curated (metadata-bearing) entries for the two Grok models worth naming
+    # explicitly; any other xAI model stays reachable via the `xai/*` wildcard
+    # (drift-proof, no metadata). ctx/caps verified against docs.x.ai/developers
+    # 2026-07-13.
+    "grok-4.5" = {
+      litellm = {
+        model = "xai/grok-4.5";
+        api_key = "os.environ/XAI_API_KEY";
+      };
+      ctx = 500000;
+      caps = "tool_use,streaming";
+      label = "Grok 4.5 · xAI";
+      desc = "xAI flagship — coding/agentic/knowledge work, 500K context.";
+    };
+    "grok-build" = {
+      litellm = {
+        model = "xai/grok-build-0.1";
+        api_key = "os.environ/XAI_API_KEY";
+      };
+      ctx = 256000;
+      caps = "tool_use,streaming";
+      label = "Grok Build 0.1 · xAI";
+      desc = "xAI's dedicated agentic-coding model (fast, cheap), 256K context.";
+    };
+
     # ── LAN box ───────────────────────────────────────────────────────────────
     # OpenAI-compatible llama-swap/llama.cpp box, no auth (LAN-only, api_key a
     # non-empty dummy). NEEDS the GPU box powered on — reached only via `cg lan`,
@@ -247,6 +285,48 @@ let
       label = "Kimi · coding";
       desc = "Moonshot Kimi coding endpoint (Anthropic-native, cloud).";
     };
+
+    # ── ChatGPT/Codex subscription escape hatch ─────────────────────────────
+    # Routes through LiteLLM's native `chatgpt/` provider, which authenticates
+    # via OAuth device-code flow against your ChatGPT plan (Plus/Pro/Team) and
+    # bills against the SAME agentic-usage/credit pool as the ChatGPT-app Codex
+    # feature — NOT the pay-per-token OPENAI_API_KEY wildcard above. Per
+    # docs.litellm.ai/docs/providers/chatgpt: talks to the UNDOCUMENTED
+    # https://chatgpt.com/backend-api/codex backend (the same one the official
+    # Codex CLI uses), needs `model_info.mode = "responses"` (native to the
+    # Responses API; Chat Completions is bridged), and LiteLLM strips
+    # max_tokens/max_output_tokens/max_completion_tokens/metadata (the backend
+    # 400s on them).
+    #
+    # KNOWINGLY UNOFFICIAL — verified 2026-07-13 (see /ensure transcript):
+    #   - Reverse-engineered, undocumented endpoint; can break without notice.
+    #   - LIVE bug: BerriAI/litellm#27175 — OAuth-only requests (no cookie
+    #     header) can get Cloudflare-403'd. If `codex-sub` starts 403ing,
+    #     check that issue before assuming a local misconfiguration.
+    #   - ToS compliance for third-party OAuth reuse is EXPLICITLY unconfirmed
+    #     by OpenAI (openai/codex#8338: "I'm an engineer, not a lawyer") — use
+    #     at your own risk, not an endorsed integration.
+    #
+    # No `api_key` field — auth is the OAuth token in `chatgptTokenDir`, not a
+    # secret. No `ctx` — LiteLLM's docs don't state gpt-5.3-codex's window, and
+    # this file doesn't guess; Claude Code falls back to its 200K default.
+    #
+    # SETUP (one-time, before the headless launchd daemon can serve this — it
+    # has no tty to complete the device-code flow itself):
+    #   1. `chatgpt-subscription-login` — run interactively, follow the
+    #      printed URL + code, sign in with the ChatGPT account.
+    #   2. `litellm-down && litellm-up` — restart the daemon so it picks up
+    #      the token now sitting in chatgptTokenDir.
+    #   3. `cg codex-sub`.
+    "codex-sub" = {
+      litellm = {
+        model = "chatgpt/gpt-5.3-codex";
+      };
+      mode = "responses";
+      caps = "tool_use,streaming";
+      label = "Codex · ChatGPT subscription";
+      desc = "Codex via your ChatGPT plan quota (OAuth subscription; UNOFFICIAL, see comment).";
+    };
   };
 
   # The FREE fallback chain: when `free` (tier 1) throttles, the router tries each
@@ -266,6 +346,7 @@ let
     "cloudflare"
     "openrouter"
     "xai"
+    "openai"
   ];
 
   # ── CLAUDE CODE ENV VAR CATALOG (reference for future presets / extraEnv) ──
@@ -396,7 +477,23 @@ let
   #     label = "GLM drive · Kimi for /model opus";
   #     desc  = "GLM everywhere, Kimi available as the opus tier, high effort.";
   #   };
-  presets = { };
+  presets = {
+    # Sonnet slot (the default active model) = the cheap/fast dedicated coding
+    # model; Opus slot (a /model upgrade, same session) = the flagship — same
+    # cost/quality split the sonnet/opus alias pair is FOR.
+    grok = {
+      main = "grok-build";
+      opus = "grok-4.5";
+      # No haiku override: xAI's actual budget tier (grok-4.1-fast,
+      # grok-code-fast-1) was retired 2026-05-15 — the slugs still resolve but
+      # now silently redirect to grok-4.3/grok-build-0.1 at THEIR pricing, so
+      # they're not actually cheaper anymore. grok-build-0.1 (already `main`)
+      # is the cheapest real model left in the Grok lineup — haiku just
+      # inherits it via the `p.haiku or mainRef` default.
+      label = "Grok · xAI";
+      desc = "Grok Build 0.1 (fast/cheap) as Sonnet/Haiku; Grok 4.5 as the Opus upgrade tier.";
+    };
+  };
 
   # The preset `cg` selects with no argument: the resilient FREE chain.
   defaultPreset = "free";
@@ -421,6 +518,7 @@ let
     (providerWildcard "groq" "GROQ_API_KEY")
     (providerWildcard "cerebras" "CEREBRAS_API_KEY")
     (providerWildcard "xai" "XAI_API_KEY")
+    (providerWildcard "openai" "OPENAI_API_KEY")
     {
       # cloudflare/<@cf/vendor/model> → openai/<@cf/vendor/model> against cfBase.
       # (Verified: litellm rewrites `cloudflare/*`→`openai/*` keeping the suffix.)
@@ -668,6 +766,13 @@ let
         name:
         let
           m = models.${name};
+          # Both ctx and mode land under the SAME model_info key, so they must be
+          # built into one attrset before merging — two separate `//`
+          # optionalAttrs on `model_info` would have the second clobber the
+          # first instead of combining (shallow merge replaces the whole key).
+          modelInfo =
+            (lib.optionalAttrs (m ? ctx) { max_input_tokens = m.ctx; })
+            // (lib.optionalAttrs (m ? mode) { inherit (m) mode; });
         in
         if m ? litellm then
           map (
@@ -676,7 +781,7 @@ let
               model_name = name;
               litellm_params = dep;
             }
-            // (lib.optionalAttrs (m ? ctx) { model_info.max_input_tokens = m.ctx; })
+            // (lib.optionalAttrs (modelInfo != { }) { model_info = modelInfo; })
           ) (deploymentsOf m)
         else
           [ ]
@@ -721,8 +826,34 @@ let
     # KEEP list names the Anthropic-format models whose thinking_blocks must NOT be
     # stripped (read by strip_thinking.py at import).
     export KEEP_THINKING_MODELS=${lib.escapeShellArg keepThinkingModels}
+    # `codex-sub`'s OAuth token lives here (persistent, outside the nix store) —
+    # written by chatgptSubscriptionLogin, read by LiteLLM on every request.
+    export CHATGPT_TOKEN_DIR=${lib.escapeShellArg chatgptTokenDir}
     exec ${lib.getExe litellmPkg} --config ${litellmConfigDir}/litellm-config.yaml --host ${host} --port ${toString port}
   '';
+
+  # ── ChatGPT/Codex subscription: one-time interactive OAuth login ───────────
+  # The launchd daemon above is headless (no tty), so it cannot complete the
+  # device-code flow itself. This runs the SAME flow via the LiteLLM Python SDK
+  # directly (bypassing the proxy entirely) so the token lands in
+  # chatgptTokenDir BEFORE the daemon ever needs it — run once, interactively,
+  # then `litellm-down && litellm-up` to pick it up. Uses a plain (unpatched)
+  # python3+litellm env: the streaming-firsttoken patch on litellmPkg only
+  # touches SSE delta re-queueing, irrelevant to a one-shot login probe.
+  chatgptLoginPython = pkgs.python3.withPackages (ps: [ ps.litellm ]);
+  chatgptSubscriptionLogin = pkgs.writeShellApplication {
+    name = "chatgpt-subscription-login";
+    text = ''
+      mkdir -p ${lib.escapeShellArg chatgptTokenDir}
+      export CHATGPT_TOKEN_DIR=${lib.escapeShellArg chatgptTokenDir}
+      printf 'chatgpt-subscription-login: follow the printed URL + code, then sign in.\n'
+      exec ${chatgptLoginPython}/bin/python3 -c '
+      import litellm
+      r = litellm.responses(model="chatgpt/gpt-5.3-codex", input="hi")
+      print(r)
+      '
+    '';
+  };
 
   # ── cg dispatcher ───────────────────────────────────────────────────────────
   cgScript = pkgs.writeShellApplication {
@@ -754,6 +885,7 @@ let
           cerebras)   url="https://api.cerebras.ai/v1/models";      key="''${CEREBRAS_API_KEY:-}" ;;
           openrouter) url="https://openrouter.ai/api/v1/models";    key="''${OPENROUTER_API_KEY:-}" ;;
           xai)        url="https://api.x.ai/v1/models";             key="''${XAI_API_KEY:-}" ;;
+          openai)     url="https://api.openai.com/v1/models";       key="''${OPENAI_API_KEY:-}" ;;
           cloudflare) url="https://api.cloudflare.com/client/v4/accounts/${cfAcct}/ai/models/search?task=Text+Generation&per_page=100"; key="''${CLOUDFLARE_WORKERS_AI_API_KEY:-}" ;;
           *) return 1 ;;
         esac
@@ -848,7 +980,7 @@ let
           fi
           target="qwen"
           ;;
-        cerebras|groq|cloudflare|openrouter|xai)
+        ${lib.concatStringsSep "|" providerNames})
           target=$(_cg_pick "$target") || { printf 'cg: nothing selected\n' >&2; exit 1; }
           ;;
       esac
@@ -925,6 +1057,7 @@ in
     sops.templates."litellm.env".content = ''
       export KIMI_API_KEY='${config.sops.placeholder.KIMI_API_KEY}'
       export XAI_API_KEY='${config.sops.placeholder.XAI_API_KEY}'
+      export OPENAI_API_KEY='${config.sops.placeholder.OPENAI_API_KEY}'
       export CEREBRAS_API_KEY='${config.sops.placeholder.CEREBRAS_API_KEY}'
       export GROQ_API_KEY='${config.sops.placeholder.GROQ_API_KEY}'
       export OPENROUTER_API_KEY='${config.sops.placeholder.OPENROUTER_API_KEY}'
@@ -938,6 +1071,7 @@ in
       litellmUp
       litellmDown
       litellmStatus
+      chatgptSubscriptionLogin
     ];
 
     # 3) launchd agent — starts at login by default; manual control via
