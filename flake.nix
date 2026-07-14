@@ -25,6 +25,28 @@
     #   https://github.com/NixOS/nixpkgs/issues/348920  (bitwarden-desktop)
     nixpkgs-bitwarden.url = "github:NixOS/nixpkgs/daf6dc47aa4b44791372d6139ab7b25269184d55";
 
+    # Pinned newer nixpkgs for terminal-notifier only. A hardening flag added to
+    # nixpkgs' ld64 around 2026-06-29 makes cctools-binutils-darwin's classic
+    # `ld` crash ("Trace/BPT trap: 5", exit 133) linking terminal-notifier on
+    # aarch64-darwin (also broke starship/R/caffeine/gtk4/etc. in the same
+    # window — NixOS/nixpkgs#536363). Fixed upstream in nixpkgs#541326 (forces
+    # the link step onto lld), merged to master 2026-07-13 as commit
+    # ca912fdb11d1cb083bfcdef0c0ba5c530b3ca784 — but nixos-unstable's branch
+    # tip is still e7a3ca8 (2026-07-11, Hydra hasn't advanced the channel past
+    # it yet), so the main `nixpkgs` input can't pick it up via a plain
+    # `nix flake update`. Pin straight to the fix commit instead of
+    # reimplementing the same patch locally; the overlay in overlays.nix swaps
+    # just terminal-notifier to come from here.
+    #
+    # Removal: once the main `nixpkgs` input's nixos-unstable pin advances past
+    # ca912fdb11d1cb083bfcdef0c0ba5c530b3ca784, delete this input AND the
+    # matching overlay block in overlays.nix.
+    #
+    # Tracking:
+    #   https://github.com/NixOS/nixpkgs/pull/536365  (ld64: disable hardening again — the real fix, unmerged)
+    #   https://github.com/NixOS/nixpkgs/pull/541326  (terminal-notifier: fix darwin build)
+    nixpkgs-terminal-notifier.url = "github:NixOS/nixpkgs/ca912fdb11d1cb083bfcdef0c0ba5c530b3ca784";
+
     nix-darwin = {
       # TEMPORARY: pointed at the PR #1819 fork branch, NOT upstream master.
       # Current nixpkgs' nixos-render-docs removed `--toc-depth`, but nix-darwin

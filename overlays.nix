@@ -57,6 +57,59 @@
     });
   })
 
+  # terminal-notifier: cctools-binutils-darwin's classic `ld` crashes with
+  # "Trace/BPT trap: 5" (SIGTRAP, exit 133) linking the Ld step, on this
+  # nixpkgs pin — a toolchain-wide aarch64-darwin regression (see the
+  # `nixpkgs-terminal-notifier` input comment in flake.nix for the full
+  # diagnosis and tracking links). Fixed upstream, but not yet on the
+  # nixos-unstable channel this flake's main `nixpkgs` input follows — serve
+  # from the pinned `nixpkgs-terminal-notifier` input (first known-good rev)
+  # instead of re-deriving the same patch locally.
+  #
+  # Removal: delete this overlay block AND the `nixpkgs-terminal-notifier`
+  # input in flake.nix once the main `nixpkgs` input's pin advances past the
+  # fix commit, then run `nix flake lock` to drop the pin from flake.lock.
+  (final: prev: {
+    terminal-notifier = (import inputs.nixpkgs-terminal-notifier {
+      system = prev.stdenv.hostPlatform.system;
+    }).terminal-notifier;
+  })
+
+  # python314 (nixpkgs' current python3/python3Packages default — litellm's
+  # by-name package.nix takes `python3Packages` directly, which all-packages.nix
+  # aliases straight to `python314Packages = python314.pkgs`, NOT via `python3.pkgs`
+  # — so this must override `python314`, not `python3`, to actually reach it)
+  # package-set fixup: opentelemetry-exporter-otlp-proto-grpc's test suite
+  # asserts a retry backoff completes in "1 second plus wiggle room" (assertAlmostEqual
+  # within 1 decimal place). On this machine's build sandbox that occasionally
+  # overshoots (~1.16s), failing the whole build nondeterministically. Timing
+  # assertion, not a real regression — disable checkPhase.
+  #
+  # Keep ALL python314 overrides in this single packageOverrides block (same
+  # merge-not-replace hazard as the python313 block above).
+  #
+  # Removal: drop once upstream loosens the timing tolerance or the test is
+  # marked flaky on the platform.
+  #   https://github.com/open-telemetry/opentelemetry-python/blob/main/exporter/opentelemetry-exporter-otlp-proto-grpc/tests/test_otlp_exporter_mixin.py
+  (final: prev: {
+    python314 = prev.python314.override {
+      packageOverrides = pyfinal: pyprev: {
+        # Also missing opentelemetry-sdk from its `dependencies`: the built
+        # wheel's Requires-Dist trips pythonRuntimeDepsCheckHook once checkPhase
+        # (above) no longer masks it by failing first. Add it back — no
+        # circular dependency (opentelemetry-sdk only needs api/semconv/
+        # typing-extensions).
+        #
+        # Removal: drop once nixpkgs' opentelemetry-exporter-otlp-proto-grpc
+        # derivation lists opentelemetry-sdk in `dependencies` upstream.
+        opentelemetry-exporter-otlp-proto-grpc = pyprev.opentelemetry-exporter-otlp-proto-grpc.overridePythonAttrs (old: {
+          doCheck = false;
+          dependencies = (old.dependencies or [ ]) ++ [ pyfinal.opentelemetry-sdk ];
+        });
+      };
+    };
+  })
+
   # mise: install the official prebuilt release binary instead of compiling the
   # Rust source. nixpkgs' mise (and mise's own flake) build from source, and
   # aarch64-darwin mise is NOT in any binary cache (cache.nixos.org / nix-community
