@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
 # Claude Code -> tmux status indicators.
 #
-# Appends a state glyph to the tmux tab where a Claude Code hook fired, matching
-# the `claude agents` board vocabulary:
-#     ✻  working          (UserPromptSubmit / PostToolUse)         -> coral
-#     ⊘  awaiting input    (Notification: permission_prompt)        -> amber  (needs you)
-#     ✓  done              (Stop / Notification: idle_prompt)       -> green
+# Records a per-pane Claude state and rebuilds a per-window glyph string so the
+# tmux tab shows ONE glyph per Claude pane, in pane order, space-separated.
+# Five states, matching the vocabulary we settled on:
+#     ·  idle       (SessionStart / cleared)                     -> gray
+#     ✻  thinking   (UserPromptSubmit / PostToolUse)             -> orange (Claude's color)
+#     ⊘  approval   (permission_prompt / AskUserQuestion /       -> yellow (needs you)
+#                    ExitPlanMode)
+#     ✓  done       (Stop / Notification: idle_prompt)           -> green  (unread, resting)
+#     ✗  error      (StopFailure)                                -> red
 #
-# Wired from ~/.claude/settings.json hooks. The GLYPH/COLOR rendering lives in
-# the tmux window-status-format (home.nix); this script only sets per-pane state
-# (@claude_pane_status) and the per-window severity aggregate (@claude_status).
-# Glyph only — no task title.
+# Wired from ~/.claude/settings.json hooks. The GLYPH + COLOR for each state live
+# in tmux user options (@claude_glyph_<state>, set in claude/tmux.nix) so all the
+# visuals stay in one place; this script only maps state -> that styled glyph and
+# joins the panes. A window with three Claude panes ends up as e.g. "✻ ⊘ ✓".
 #
-# Multiple Claude panes in one window are merged by severity:
-#     awaiting > working > done    (a pane that needs you wins; "done" only
-#                                   shows once nothing is still working)
+# State is per-pane (@claude_pane_status); the window aggregate (@claude_glyphs)
+# is just every pane's glyph concatenated — no severity merge, since we show them
+# all. A pane with no Claude session contributes no glyph.
 #
 # Disable:
 #   • instant, no rebuild:  touch ~/.claude/.tmux-status-off   (clears + no-ops)
-#   • full removal:         set claudeTmuxStatus.enable = false in home.nix; dr
+#   • full removal:         set claude.tmuxStatus.enable = false in home.nix; dr
 set -uo pipefail
 
 action="${1:-clear}"
@@ -33,42 +37,47 @@ win="$(tmux display-message -t "$pane" -p '#{window_id}' 2>/dev/null)" || exit 0
 # Runtime kill-switch: reset this pane + window and stop.
 if [[ -f "$HOME/.claude/.tmux-status-off" ]]; then
   tmux set-option -p -t "$pane" -u @claude_pane_status 2>/dev/null || true
-  tmux set-option -w -t "$win" -u @claude_status 2>/dev/null || true
+  tmux set-option -w -t "$win" -u @claude_glyphs 2>/dev/null || true
   tmux refresh-client -S 2>/dev/null || true
   exit 0
 fi
 
 case "$action" in
-  set-active)  state="active"  ;;
-  set-waiting) state="waiting" ;;
-  set-done)    state="done"    ;;
-  clear|off|*) state=""        ;;
+  set-idle)     state="idle"     ;;
+  set-thinking) state="thinking" ;;
+  set-approval) state="approval" ;;
+  set-done)     state="done"     ;;
+  set-error)    state="error"    ;;
+  clear|off|*)  state=""         ;;
 esac
 
-# Record this pane's own state. The tab shows a glyph only (no task title), so
-# there is no @claude_title to capture.
+# Record this pane's own state (or clear it).
 if [[ -n "$state" ]]; then
   tmux set-option -p -t "$pane" @claude_pane_status "$state" 2>/dev/null || true
 else
   tmux set-option -p -t "$pane" -u @claude_pane_status 2>/dev/null || true
 fi
 
-# Recompute the window aggregate by severity: waiting > active > done > none.
-# A pane awaiting input wins the tab; "done" only shows when nothing is still
-# working (i.e. all in-pane sessions have finished).
-agg=""
+# Rebuild the window's glyph string: one styled glyph per Claude pane, in pane
+# order, space-joined. Each state's styled glyph ("#[fg=…]<glyph>") comes from a
+# @claude_glyph_<state> global option (defined in claude/tmux.nix). Panes with no
+# @claude_pane_status contribute nothing.
+glyphs=""
 while IFS= read -r s; do
-  case "$s" in
-    waiting) agg="waiting"; break ;;
-    active)  agg="active" ;;
-    done)    [[ -z "$agg" ]] && agg="done" ;;
-  esac
+  [[ -n "$s" ]] || continue
+  g="$(tmux show-options -gv "@claude_glyph_$s" 2>/dev/null)"
+  [[ -n "$g" ]] || continue
+  if [[ -n "$glyphs" ]]; then
+    glyphs="$glyphs $g"
+  else
+    glyphs="$g"
+  fi
 done < <(tmux list-panes -t "$win" -F '#{@claude_pane_status}' 2>/dev/null)
 
-if [[ -n "$agg" ]]; then
-  tmux set-option -w -t "$win" @claude_status "$agg" 2>/dev/null || true
+if [[ -n "$glyphs" ]]; then
+  tmux set-option -w -t "$win" @claude_glyphs "$glyphs" 2>/dev/null || true
 else
-  tmux set-option -w -t "$win" -u @claude_status 2>/dev/null || true
+  tmux set-option -w -t "$win" -u @claude_glyphs 2>/dev/null || true
 fi
 
 tmux refresh-client -S 2>/dev/null || true
