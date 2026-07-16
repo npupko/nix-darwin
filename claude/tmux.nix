@@ -51,16 +51,22 @@ let
   );
 
   # Window tab format: appends the per-window glyph string (one glyph per Claude pane).
-  # If @claude_glyphs is set, render a leading space + the glyphs, then reset fg back to
-  # the tab-name color (accent when focused, dim otherwise) so the trailing space and the
-  # next tab aren't tinted by the last glyph's color. Falls back to the plain themed
-  # format when glyphs are disabled.
+  # If @claude_glyphs is set, render #[nobold] + a leading space + the glyphs; the fg reset
+  # back to the tab-name color (accent when focused, dim otherwise) is emitted AFTER the
+  # conditional, then a trailing space.
+  #
+  # The reset MUST stay outside the #{?…} conditional. tmux's conditional parser splits its
+  # branches on commas and does not skip commas inside #[…] style tokens, so an accent style
+  # like #[fg=blue,bold] placed inside a branch is cut at its comma — mangling the branch and
+  # dropping the trailing space on the focused tab only (its reset has a comma; the dim tab's
+  # #[fg=brightblack] does not), which shifts the bar by a column when you switch tabs.
+  # Falls back to the plain themed format when glyphs are disabled.
   windowFormats =
     if cfg.tmuxStatus.enable then
       ''
         ${glyphOptions}
-        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{@claude_glyphs}, #{@claude_glyphs}#[fg=brightblack],} "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{@claude_glyphs}, #{@claude_glyphs}#[fg=${theme.tmux.accent},bold],} "
+        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{@claude_glyphs},#[nobold] #{@claude_glyphs},}#[fg=brightblack] "
+        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{@claude_glyphs},#[nobold] #{@claude_glyphs},}#[fg=${theme.tmux.accent},bold] "
       ''
     else
       ''
