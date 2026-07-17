@@ -5,11 +5,28 @@
 # tmux tab shows ONE glyph per Claude pane, in pane order, space-separated.
 # Five states, matching the vocabulary we settled on:
 #     ·  idle       (SessionStart / cleared)                     -> gray
-#     ✻  thinking   (UserPromptSubmit / PostToolUse)             -> orange (Claude's color)
-#     ⊘  approval   (permission_prompt / AskUserQuestion /       -> yellow (needs you)
-#                    ExitPlanMode)
+#     ✻  thinking   (UserPromptSubmit / PreToolUse[any tool      -> orange (Claude's color)
+#                    except the approval ones] / PostToolUse)
+#     ⊘  approval   (permission_prompt / PreToolUse:             -> yellow (needs you)
+#                    AskUserQuestion / ExitPlanMode)
 #     ✓  done       (Stop / Notification: idle_prompt)           -> green  (unread, resting)
 #     ✗  error      (StopFailure)                                -> red
+#
+# Why the extra PreToolUse[except approval tools] -> thinking rule exists:
+# approval is a STICKY state. PreToolUse:{AskUserQuestion,ExitPlanMode} sets it,
+# and it must be actively overwritten once you answer. PostToolUse fires only
+# AFTER the answered tool finishes, so between accepting a plan and the model's
+# first real tool the glyph lingers on ⊘. Firing thinking on PreToolUse of the
+# next non-approval tool clears it as soon as the model resumes work, before that
+# tool even runs. The negative-lookahead matcher excludes the two approval tools
+# so it can never race the approval rule for those.
+#
+# Subagents: per the hooks reference these PreToolUse/PostToolUse hooks DO fire
+# inside a subagent (the event carries agent_id/agent_type), so a subagent's own
+# AskUserQuestion / ExitPlanMode flips the pane too. It runs in the same pane as
+# its parent (shared TMUX_PANE), so the glyph tracks whichever of the two is
+# currently waiting. (If a subagent prompt ever fails to register, check the
+# hooks debug log — behavior here has shifted across Claude Code versions.)
 #
 # Wired from ~/.claude/settings.json hooks. The GLYPH + COLOR for each state live
 # in tmux user options (@claude_glyph_<state>, set in claude/tmux.nix) so all the
