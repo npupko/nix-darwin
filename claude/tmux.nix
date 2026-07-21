@@ -7,6 +7,11 @@
 # colors. Driven by ~/.claude/settings.json hooks → ~/.local/bin/claude-tmux-status,
 # which records per-pane state and rebuilds a per-window @claude_glyphs string.
 #
+# Tab LABEL: on a Claude pane the window name is replaced by Claude's own session
+# title (the OSC #{pane_title}, glyph-stripped and width-capped) so the tab reads e.g.
+# "3:Verify Kindle import…  ✻" instead of the bare directory name. Non-Claude panes
+# keep the themed window name #W. See `claudeLabel` below.
+#
 # The GLYPH + COLOR for each state are defined here as @claude_glyph_<state> options
 # so all the visuals live in one place; the hook script just maps a pane's state to
 # the matching option and joins them. A styled string in a user option is inserted
@@ -50,28 +55,44 @@ let
     lib.mapAttrsToList (name: s: ''set -g @claude_glyph_${name} "#[fg=${s.fg}]${s.glyph}"'') states
   );
 
-  # Window tab format: appends the per-window glyph string (one glyph per Claude pane).
-  # If @claude_glyphs is set, render #[nobold] + a leading space + the glyphs; the fg reset
-  # back to the tab-name color (accent when focused, dim otherwise) is emitted AFTER the
-  # conditional, then a trailing space.
-  #
-  # The reset MUST stay outside the #{?…} conditional. tmux's conditional parser splits its
-  # branches on commas and does not skip commas inside #[…] style tokens, so an accent style
-  # like #[fg=blue,bold] placed inside a branch is cut at its comma — mangling the branch and
-  # dropping the trailing space on the focused tab only (its reset has a comma; the dim tab's
-  # #[fg=brightblack] does not), which shifts the bar by a column when you switch tabs.
-  # Falls back to the plain themed format when glyphs are disabled.
+  # Tab LABEL: when a window's active pane is a Claude pane (@claude_pane_status is set),
+  # show Claude's own session title instead of the window name. The title arrives over OSC
+  # as #{pane_title} with a leading state glyph ("⠂ Implement …", "✳ Verify …"); the two
+  # chained modifiers strip that first token (we render our own five-state glyph already)
+  # and then cap it to 24 cols with a … marker. #{pane_title} in a window-status format
+  # resolves against that window's active pane, so a multi-Claude window tracks whichever
+  # pane you're focused on. Non-Claude panes (plain shells, or the feature off) fall to #W.
+  claudeLabel = ''#{?#{@claude_pane_status},#{s/^[^ ]* //;=/24/…:pane_title},#W}'';
+
+  # Tab styles: dim for background tabs, themed accent for the focused one.
+  dimStyle = "fg=brightblack";
+  accentStyle = "fg=${theme.tmux.accent},bold";
+
+  # `#[style] <body> #[style]`: the tab's leading style and its trailing reset share one
+  # arg, so the "reset color == prefix color" invariant (below) is structural rather than
+  # a copy-paste convention repeated across the four format strings, and a trailing space
+  # pads the tab.
+  mkStatus = style: body: ''#[${style}] ${body}#[${style}] '';
+
+  # Enabled-branch body: label + per-window glyph string (one glyph per Claude pane).
+  # The colored reset MUST stay OUTSIDE the #{?…@claude_glyphs} conditional — tmux splits
+  # conditional branches on commas and does not skip commas inside #[…] style tokens, so an
+  # accent style like #[fg=blue,bold] placed inside a branch is cut at its comma, mangling
+  # the branch and shifting the bar a column on tab switch. So this body carries only the
+  # #[nobold] glyph run; mkStatus emits the colored reset after it.
+  enabledBody = ''#I:${claudeLabel}#{?#{@claude_glyphs},#[nobold] #{@claude_glyphs},}'';
+
   windowFormats =
     if cfg.tmuxStatus.enable then
       ''
         ${glyphOptions}
-        set -g window-status-format "#[fg=brightblack] #I:#W#{?#{@claude_glyphs},#[nobold] #{@claude_glyphs},}#[fg=brightblack] "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W#{?#{@claude_glyphs},#[nobold] #{@claude_glyphs},}#[fg=${theme.tmux.accent},bold] "
+        set -g window-status-format "${mkStatus dimStyle enabledBody}"
+        set -g window-status-current-format "${mkStatus accentStyle enabledBody}"
       ''
     else
       ''
-        set -g window-status-format "#[fg=brightblack] #I:#W "
-        set -g window-status-current-format "#[fg=${theme.tmux.accent},bold] #I:#W "
+        set -g window-status-format "${mkStatus dimStyle "#I:#W"}"
+        set -g window-status-current-format "${mkStatus accentStyle "#I:#W"}"
       '';
 
   # Optional: per-pane label on the pane border, tinted from per-pane @claude_pane_status.
