@@ -1,13 +1,13 @@
 keybinds clear-defaults=true {
     locked {
-        bind "Ctrl g" { SwitchToMode "normal"; }
+        bind "Ctrl a" { SwitchToMode "normal"; }
     }
     normal {
-        // send-prefix equivalent: Ctrl+g then g writes a literal Ctrl+g
-        // (ASCII BEL, byte 7) to the focused pane, then re-locks. A dedicated
-        // key keeps Ctrl+g Ctrl+g a silent unlock/lock toggle (line 169),
+        // send-prefix equivalent: Ctrl+a then a writes a literal Ctrl+a
+        // (ASCII SOH, byte 1) to the focused pane, then re-locks. A dedicated
+        // key keeps Ctrl+a Ctrl+a a silent unlock/lock toggle (line 169),
         // which the Unlock-First preset overloads as both enter and exit.
-        bind "g" { Write 7; SwitchToMode "locked"; }
+        bind "a" { Write 1; SwitchToMode "locked"; }
     }
     pane {
         bind "left" { MoveFocus "left"; }
@@ -168,7 +168,7 @@ keybinds clear-defaults=true {
         bind "Alt 9" { GoToTab 9; }
     }
     shared_except "locked" "renametab" "renamepane" {
-        bind "Ctrl g" { SwitchToMode "locked"; }
+        bind "Ctrl a" { SwitchToMode "locked"; }
         bind "Ctrl q" { Quit; }
     }
     shared_except "locked" "entersearch" {
