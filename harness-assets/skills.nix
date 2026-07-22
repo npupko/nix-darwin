@@ -33,7 +33,6 @@
       brainstorming = {
         to = [ "claude" ]; # from obra/superpowers; Claude-only per request
       };
-      breakdown = { };
       caveman = { };
       eventstorming = { };
       grill-me = { };
