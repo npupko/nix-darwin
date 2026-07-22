@@ -227,6 +227,8 @@ in
     # consumers (e.g. morning-review's mail-cal.sh) read it into the env var on
     # demand, so the secret materializes solely in gog's own process.
     GOG_KEYRING_PASSWORD_FILE = config.sops.secrets.GOG_KEYRING_PASSWORD.path;
+
+    CLAUDE_CODE_TMUX_TRUECOLOR = "true";
   };
 
   # PATH additions
@@ -961,6 +963,7 @@ in
       "plans"
       "projectBrief.md"
       "tmp_code_*"
+      ".ignore"
 
       # Ruby
       ".ruby-gemset"
