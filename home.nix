@@ -305,7 +305,11 @@ in
         rust = "latest";
         node = "latest";
         bun = "latest";
-        "npm:typescript" = "latest";
+        # latest = native `tsgo` (primary on PATH, auto-tracks); 5 = classic
+        # tsserver.js that typescript-language-server needs. ts_ls is pointed at
+        # the 5.x lib in nvim's lsp.lua so loose .ts files (no local
+        # node_modules) still get LSP.
+        "npm:typescript" = [ "latest" "5" ];
         "npm:typescript-language-server" = "latest";
         # jsonls + html + cssls + eslint. Was nix (nvim-lsp.nix) but its build
         # pins node 24, under which the json server crashes (ESM misdetection
