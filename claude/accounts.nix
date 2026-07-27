@@ -7,6 +7,13 @@
 # credential slots. We only need to (a) share everything non-auth and (b) launch the
 # CLI with CLAUDE_CONFIG_DIR pinned.
 #
+# Also home to `km`/`kma`: a THIRD pattern alongside OAuth (c/ca/cw/cwa, this file)
+# and the LiteLLM gateway (cg, providers.nix) — a direct, API-key launcher against a
+# vendor's OWN Anthropic-compatible endpoint (Moonshot/Kimi's api.moonshot.ai/anthropic),
+# no gateway in between. It lives here rather than providers.nix because it shares
+# accounts.nix's shape (inline env-prefixed `claude` alias) more than the LiteLLM
+# model-registry shape `cg` requires.
+#
 # Design notes:
 #   * Personal (~/.claude) is the default account AND the canonical store — bare
 #     `claude`, `c`, `ca`, and the claude-* provider functions are untouched. Work gets
@@ -77,6 +84,13 @@ in
       ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
       cw = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
       cwa = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
+      # Direct to Moonshot's own Anthropic-compatible endpoint — bypasses the
+      # LiteLLM gateway entirely (unlike `cg kimi`, which is a different Kimi
+      # coding endpoint fronted by LiteLLM; see providers.nix). MOONSHOT_API_KEY
+      # is an existing sops secret, already exported into the interactive shell
+      # via home.nix's api-keys.env/.fish templates.
+      km = "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY ANTHROPIC_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_OPUS_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_SONNET_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_HAIKU_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_FABLE_MODEL='kimi-k3[1m]' CLAUDE_CODE_SUBAGENT_MODEL='kimi-k3[1m]' ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+      kma = "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY ANTHROPIC_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_OPUS_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_SONNET_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_HAIKU_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_FABLE_MODEL='kimi-k3[1m]' CLAUDE_CODE_SUBAGENT_MODEL='kimi-k3[1m]' ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
     };
 
     # The work .claude.json holds its own oauthAccount/userID, so it can't be symlinked.
