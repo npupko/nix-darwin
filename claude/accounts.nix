@@ -9,8 +9,8 @@
 #
 # Also home to `km`/`kma`: a THIRD pattern alongside OAuth (c/ca/cw/cwa, this file)
 # and the LiteLLM gateway (cg, providers.nix) — a direct, API-key launcher against
-# Kimi's own coding-subscription endpoint (api.kimi.com/coding, model "k3"), no
-# gateway in between. Same endpoint + KIMI_API_KEY as `cg kimi` (providers.nix);
+# Kimi's Anthropic-compatible endpoint (api.kimi.com/anthropic, model "k3"), no
+# gateway in between. Same KIMI_API_KEY sops secret as `cg kimi` (providers.nix);
 # this is a gateway-free shortcut to it. It lives here rather than providers.nix
 # because it shares accounts.nix's shape (inline env-prefixed `claude` alias) more
 # than the LiteLLM model-registry shape `cg` requires.
@@ -85,16 +85,15 @@ in
       ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
       cw = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
       cwa = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
-      # Direct to Kimi's coding-subscription endpoint (api.kimi.com/coding) —
-      # bypasses the LiteLLM gateway entirely. SAME endpoint + KIMI_API_KEY sops
-      # secret as the `cg kimi` LiteLLM model (providers.nix); this is just a
-      # gateway-free shortcut to it. Model "k3" = Kimi K3, the 1M-context
-      # flagship on this endpoint (verified against ~/.pi/agent/models-store.json:
-      # id "k3", contextWindow 1048576) — NOT api.moonshot.ai (a different,
-      # separately-billed Moonshot product; that account was suspended for
-      # insufficient balance, hence the move to the coding-subscription endpoint).
-      km = "ANTHROPIC_BASE_URL=https://api.kimi.com/coding ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
-      kma = "ANTHROPIC_BASE_URL=https://api.kimi.com/coding ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
+      # Direct to Kimi's Anthropic-compatible endpoint on the kimi.com domain
+      # (api.kimi.com/anthropic — NOT /coding, which is the separate
+      # OAuth-gated coding-subscription path used by ~/.pi's kimi-coding
+      # provider). Bypasses the LiteLLM gateway entirely; uses the same
+      # KIMI_API_KEY sops secret as the `cg kimi` LiteLLM model (providers.nix).
+      # Model "k3" = Kimi K3, the 1M-context flagship (verified against
+      # ~/.pi/agent/models-store.json: id "k3", contextWindow 1048576).
+      km = "ANTHROPIC_BASE_URL=https://api.kimi.com/anthropic ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+      kma = "ANTHROPIC_BASE_URL=https://api.kimi.com/anthropic ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
     };
 
     # The work .claude.json holds its own oauthAccount/userID, so it can't be symlinked.
