@@ -9,11 +9,17 @@
 #
 # Also home to `km`/`kma`: a THIRD pattern alongside OAuth (c/ca/cw/cwa, this file)
 # and the LiteLLM gateway (cg, providers.nix) — a direct, API-key launcher against
-# Kimi's Anthropic-compatible endpoint (api.kimi.com/anthropic, model "k3"), no
-# gateway in between. Same KIMI_API_KEY sops secret as `cg kimi` (providers.nix);
-# this is a gateway-free shortcut to it. It lives here rather than providers.nix
-# because it shares accounts.nix's shape (inline env-prefixed `claude` alias) more
-# than the LiteLLM model-registry shape `cg` requires.
+# Moonshot's OWN public Anthropic-compatible endpoint (api.moonshot.ai/anthropic,
+# model "kimi-k3[1m]" — verified against a published Claude-Code-via-Moonshot
+# walkthrough), no gateway in between. NOT api.kimi.com/{coding,anthropic} — that
+# domain (per ~/.pi/agent/models-store.json + auth.json) is a SEPARATE, OAuth-gated
+# Kimi Code subscription product, unrelated to this API-key path. Requires
+# CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 (same as `cg`) — without it Claude
+# Code validates ANTHROPIC_MODEL against its built-in catalog and rejects any
+# non-claude/anthropic-prefixed id as "not found", even though the request itself
+# would otherwise work fine. It lives here rather than providers.nix because it
+# shares accounts.nix's shape (inline env-prefixed `claude` alias) more than the
+# LiteLLM model-registry shape `cg` requires.
 #
 # Design notes:
 #   * Personal (~/.claude) is the default account AND the canonical store — bare
@@ -85,15 +91,24 @@ in
       ca = "CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
       cw = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
       cwa = "CLAUDE_CONFIG_DIR=${homeDir}/.claude-work CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
-      # Direct to Kimi's Anthropic-compatible endpoint on the kimi.com domain
-      # (api.kimi.com/anthropic — NOT /coding, which is the separate
-      # OAuth-gated coding-subscription path used by ~/.pi's kimi-coding
-      # provider). Bypasses the LiteLLM gateway entirely; uses the same
-      # KIMI_API_KEY sops secret as the `cg kimi` LiteLLM model (providers.nix).
-      # Model "k3" = Kimi K3, the 1M-context flagship (verified against
-      # ~/.pi/agent/models-store.json: id "k3", contextWindow 1048576).
-      km = "ANTHROPIC_BASE_URL=https://api.kimi.com/anthropic ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
-      kma = "ANTHROPIC_BASE_URL=https://api.kimi.com/anthropic ANTHROPIC_AUTH_TOKEN=$KIMI_API_KEY ANTHROPIC_MODEL=k3 ANTHROPIC_DEFAULT_OPUS_MODEL=k3 ANTHROPIC_DEFAULT_SONNET_MODEL=k3 ANTHROPIC_DEFAULT_HAIKU_MODEL=k3 ANTHROPIC_DEFAULT_FABLE_MODEL=k3 CLAUDE_CODE_SUBAGENT_MODEL=k3 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
+      # Direct to Moonshot's public Anthropic-compatible endpoint
+      # (api.moonshot.ai/anthropic) — bypasses the LiteLLM gateway entirely.
+      # MOONSHOT_API_KEY is an existing sops secret, already exported into the
+      # interactive shell via home.nix's api-keys.env/.fish templates. Model
+      # "kimi-k3[1m]" = Kimi K3 requesting its 1M-context window (the "[1m]"
+      # suffix is Claude Code's own convention for that, same as native Claude
+      # "…-pro[1m]" ids — see the env-var catalog comment in providers.nix).
+      # CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 is REQUIRED here: without
+      # it, Claude Code validates ANTHROPIC_MODEL against its built-in catalog
+      # and any non-claude/anthropic-prefixed id comes back "not found" at
+      # startup, even though the underlying request would work fine.
+      #
+      # NOT api.kimi.com/{coding,anthropic} — that domain (per
+      # ~/.pi/agent/models-store.json + auth.json) is a separate, OAuth-gated
+      # Kimi Code subscription product (15-minute access tokens, not a static
+      # bearer), unrelated to this API-key path.
+      km = "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY ANTHROPIC_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_OPUS_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_SONNET_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_HAIKU_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_FABLE_MODEL='kimi-k3[1m]' CLAUDE_CODE_SUBAGENT_MODEL='kimi-k3[1m]' CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude --dangerously-skip-permissions";
+      kma = "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY ANTHROPIC_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_OPUS_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_SONNET_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_HAIKU_MODEL='kimi-k3[1m]' ANTHROPIC_DEFAULT_FABLE_MODEL='kimi-k3[1m]' CLAUDE_CODE_SUBAGENT_MODEL='kimi-k3[1m]' CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 ENABLE_TOOL_SEARCH=false CLAUDE_CODE_AUTO_COMPACT_WINDOW=1048576 CLAUDE_CODE_EFFORT_LEVEL=max CLAUDE_CODE_TMUX_TRUECOLOR=1 claude agents --permission-mode bypassPermissions";
     };
 
     # The work .claude.json holds its own oauthAccount/userID, so it can't be symlinked.
