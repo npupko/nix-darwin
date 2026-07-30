@@ -53,6 +53,9 @@
       skill-creator = {
         to = [ "agents" ]; # pi + Codex only; Claude has its own native skill-creator
       };
+      simplify = {
+        to = [ "agents" ]; # port of Claude Code's native /simplify; agents-only so it doesn't shadow it
+      };
       playground = {
         status = "experimental";
       };
