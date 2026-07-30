@@ -190,6 +190,12 @@
       "zed"
       "droid"
       "cursor-cli"
+      # Bitwarden desktop: served via cask, not nixpkgs. On aarch64-darwin the
+      # nixpkgs bitwarden-desktop is not cached and building it from source hits
+      # a compiler-rt-libc-18.1.8 / libcxx-21 failure (FuzzerFork.cpp), present
+      # on 26.05 stable — not just unstable. The cask is the maintained,
+      # auto-updating GUI build.
+      "bitwarden"
     ];
   };
 }

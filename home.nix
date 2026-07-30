@@ -1,9 +1,9 @@
 # =============================================================================
 # PACKAGE MANAGEMENT STRATEGY
 # =============================================================================
-# Nix (home.packages):  CLI tools, system utilities, fonts (nixpkgs unstable)
+# Nix (home.packages):  CLI tools, system utilities, fonts (nixpkgs STABLE 26.05)
 # Homebrew brews:       macOS-specific, not in nixpkgs, or need latest versions
-# Homebrew casks:       GUI applications
+# Homebrew casks:       GUI applications (incl. bitwarden — Electron not cached on darwin)
 # Mise:                 Language runtimes + npm/node CLI tools (always latest)
 # Self-managed:         Claude Code (auto-updates via native installer)
 # =============================================================================
@@ -143,7 +143,6 @@ in
     _1password-cli
     cloudflared
     kubectx
-    bitwarden-desktop
     terminal-notifier
 
     # Theme switching
@@ -886,10 +885,10 @@ in
       "--layout=reverse"
       "--border"
     ];
-    fileWidget.command = "fd --type f --hidden --follow --exclude .git";
-    fileWidget.options = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
-    changeDirWidget.command = "fd --type d --hidden --follow --exclude .git";
-    changeDirWidget.options = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
+    fileWidgetCommand = "fd --type f --hidden --follow --exclude .git";
+    fileWidgetOptions = [ "--preview 'bat --style=numbers --color=always --line-range :500 {}'" ];
+    changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
+    changeDirWidgetOptions = [ "--preview 'eza --tree --level=2 --icons --color=always {}'" ];
   };
 
   # Fd (modern find)
@@ -1324,6 +1323,8 @@ in
       # secret) — alias the Pages deploy key so `wrangler login` is never needed.
       export CLOUDFLARE_API_TOKEN='${config.sops.placeholder.CLOUDFLARE_PAGES_API_KEY}'
       export CLOUDFLARE_ACCOUNT_ID='0e9bd7514f96c40b78dd0719b2d609b4'
+      # Standard HTTPS port — not a secret (see sops.secrets note above).
+      export PROXY_PORT='443'
     '';
 
     # Same secrets, fish syntax — fish cannot source the bash-style file above.
@@ -1333,6 +1334,8 @@ in
     '') (lib.attrNames config.sops.secrets) + ''
       set -gx CLOUDFLARE_API_TOKEN '${config.sops.placeholder.CLOUDFLARE_PAGES_API_KEY}'
       set -gx CLOUDFLARE_ACCOUNT_ID '0e9bd7514f96c40b78dd0719b2d609b4'
+      # Standard HTTPS port — not a secret (see sops.secrets note above).
+      set -gx PROXY_PORT '443'
     '';
 
     # Individual secrets - each becomes a file
@@ -1388,9 +1391,12 @@ in
       "PARALLEL_API_KEY"
       "STITCH_API_KEY"
 
-      # Corporate HTTPS proxy
+      # Corporate HTTPS proxy (PROXY_PORT is not secret — the standard HTTPS
+      # port 443 — and lives as a plain literal in the templates below. It was
+      # dropped from sops because 26.05's sops-install-secrets rejects
+      # numeric-valued secrets: sops decodes "443" as an int and the tool
+      # requires a string.)
       "PROXY_HOST"
-      "PROXY_PORT"
       "PROXY_USER"
       "PROXY_PASS"
 
