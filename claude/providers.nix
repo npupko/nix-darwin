@@ -87,16 +87,21 @@ let
   # also emit a text_delta/thinking_delta carrying content. Pure-Python, so only
   # litellm rebuilds; tool calls (already correct) are unaffected.
   #
-  # ── REMOVE THIS PATCH WHEN BUMPING litellm ──────────────────────────────────
+  # ── STILL NEEDED on 26.05 (litellm 1.86.0) ──────────────────────────────────
   # This is BerriAI/litellm#30014, now CLOSED/fixed upstream — the accepted fix
   # (tracked via #30043) is the same behavior this patch implements: "ensure the
-  # first non-empty text delta is never dropped". It is NOT in 1.89.0; it landed in
-  # a later release (likely 1.89.1–1.89.3 or 1.90.x — exact version unconfirmed).
-  # So on the next litellm bump: drop ./litellm-streaming-firsttoken.patch + this
-  # override, restart the daemon, and re-run the repro — a streaming `cg free`
-  # request must keep its leading token ("Hello there friend", not "there friend").
-  # If the patch then fails to apply (upstream touched these lines), that's the
-  # signal the fix is in: delete it. Keep it only while pinned to 1.89.0.
+  # first non-empty text delta is never dropped". The fix landed AFTER 1.89.0
+  # (likely 1.89.1–1.90.x). nixpkgs 26.05 pins litellm 1.86.0 — OLDER than 1.89.0,
+  # so the fix is definitely absent and this patch is required. It applies cleanly
+  # to 1.86.0 (verified: the darwin-rebuild build succeeds with it), so the adapter
+  # code it targets is unchanged from 1.89.0.
+  #
+  # REMOVE only once litellm reaches a release WITH the fix — either when 26.11
+  # bumps nixpkgs' litellm, or if you override litellm to a newer version here.
+  # Then: drop ./litellm-streaming-firsttoken.patch + this override, restart the
+  # daemon, and re-run the repro — a streaming `cg free` request must keep its
+  # leading token ("Hello there friend", not "there friend"). If the patch fails
+  # to apply (upstream touched these lines), that's the signal the fix is in.
   litellmPkg = pkgs.litellm.overridePythonAttrs (old: {
     patches = (old.patches or [ ]) ++ [ ./litellm-streaming-firsttoken.patch ];
   });
@@ -121,8 +126,8 @@ let
   #             _DESCRIPTION env wherever the model lands in a slot.
   #
   # Curated entries exist for: the FREE-chain members (their metadata matters to
-  # Claude Code), the synthetic `free` driver, the LAN `qwen`, and `kimi`
-  # (Anthropic-format, special). EVERYTHING ELSE is reached via the per-provider
+  # Claude Code), the synthetic `free` driver, the LAN `qwen`, and the two Kimi
+  # entries (Anthropic-format, special). EVERYTHING ELSE is reached via the per-provider
   # wildcards (`cg groq/<model>`) or the picker — drift-proof, but no metadata
   # (Claude Code then assumes a 200K window).
   models = {
@@ -272,18 +277,46 @@ let
 
     # ── Anthropic-format escape hatch ──────────────────────────────────────────
     # Moonshot/Kimi coding endpoint is Anthropic-format → a LiteLLM anthropic/
-    # provider (LiteLLM appends /v1/messages to api_base). The ONLY model whose
+    # provider (LiteLLM appends /v1/messages to api_base). The ONLY models whose
     # replayed thinking_blocks are KEPT (the strip hook skips anthropic/ models).
+    #
+    # KIMI_API_KEY is a Kimi CODING-PLAN (subscription) key, not a pay-per-token
+    # one — verified 2026-07-27: it is accepted by api.kimi.com/coding and
+    # REJECTED (401 Invalid Authentication) by the metered api.moonshot.ai/
+    # anthropic endpoint, which takes the separate MOONSHOT_API_KEY. So both
+    # entries below bill against the subscription, no OAuth dance required.
+    # ctx values come from a live GET /coding/v1/models with this key.
     kimi = {
       litellm = {
         model = "anthropic/kimi-for-coding";
         api_base = "https://api.kimi.com/coding";
         api_key = "os.environ/KIMI_API_KEY";
       };
-      ctx = 131072;
+      ctx = 262144; # live catalog says 262144, not the 131072 previously assumed
       caps = "tool_use,streaming";
       label = "Kimi · coding";
-      desc = "Moonshot Kimi coding endpoint (Anthropic-native, cloud).";
+      desc = "Moonshot Kimi K2.7 Coding (Anthropic-native, 256K).";
+    };
+
+    # K3 — the 1M-context flagship at the same subscription endpoint. `k3` is the
+    # REAL upstream model id; the "kimi-k3[1m]" spelling used by the direct
+    # km/kma launchers in accounts.nix is a Claude-Code-side convention for
+    # requesting a 1M window, not something this endpoint accepts.
+    "kimi-k3" = {
+      litellm = {
+        model = "anthropic/k3";
+        api_base = "https://api.kimi.com/coding";
+        api_key = "os.environ/KIMI_API_KEY";
+        # Not enforced (verified: the call 200s without it) — sent to match what
+        # Moonshot's own client identifies as, in case they ever start gating.
+        extra_headers = {
+          "User-Agent" = "KimiCLI/1.5";
+        };
+      };
+      ctx = 1048576;
+      caps = "tool_use,streaming";
+      label = "Kimi K3 · coding (1M)";
+      desc = "Moonshot Kimi K3 on the coding subscription — 1M context.";
     };
 
     # ── ChatGPT/Codex subscription escape hatch ─────────────────────────────
@@ -699,7 +732,7 @@ let
   # only toggles the beta header; modify_params/drop_params/additional_drop_params
   # don't touch message content) — so a LiteLLM async_pre_call_hook strips replayed
   # reasoning from messages before the provider call, for ALL models EXCEPT the
-  # Anthropic-format ones (kimi), which REQUIRE the blocks. Thinking stays fully ON
+  # Anthropic-format ones (kimi, kimi-k3), which REQUIRE the blocks. Thinking stays fully ON
   # in Claude Code; the models still reason each turn (server-side), we just stop
   # echoing prior thinking back to a backend that can't parse it. Reasoning models
   # (Qwen3.6-27B emits `reasoning`) are handled the same way. NOTE: LiteLLM resolves
