@@ -1360,6 +1360,7 @@ in
       "KIMI_API_KEY"
       "CLOUDFLARE_WORKERS_AI_API_KEY"
       "CLOUDFLARE_PAGES_API_KEY"
+      "FISH_AUDIO_API_KEY"
 
 
       # Search & research
